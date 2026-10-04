@@ -1,0 +1,11 @@
+{
+  "name": "kerr-black-hole",
+  "version": "1.0.0",
+  "description": "Real-time general-relativistic ray tracing of a rotating (Kerr) black hole in the browser (WebGL2)",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "start": "python -m http.server 8000",
+    "test": "node dev/test_physics.js"
+  }
+}
