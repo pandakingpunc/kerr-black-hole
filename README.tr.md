@@ -2,7 +2,7 @@
 
 Dönen (Kerr) bir kara deliğin tarayıcıda, WebGL2 ile çalışan gerçek zamanlı genel görelilik ışın izleyicisi. Derleme adımı, bağımlılık ve dış dosya yok: gökyüzü, yıldızlar, Samanyolu ve yığılma diski dokusu tamamen kodla üretilir.
 
-[English](README.md) · Türkçe
+**[Canlı demo](https://pandakingpunc.github.io/kerr-black-hole/)** · [English](README.md) · Türkçe
 
 ![Fiziksel görünüm](screenshots/physical.png)
 

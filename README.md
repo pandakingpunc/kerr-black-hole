@@ -2,7 +2,7 @@
 
 A real-time general-relativistic ray tracer for a rotating (Kerr) black hole, running entirely in the browser on WebGL2. No build step, no dependencies, no external assets: the sky, the stars, the Milky Way and the accretion-disk texture are all generated in code.
 
-English · [Türkçe](README.tr.md)
+**[Live demo](https://pandakingpunc.github.io/kerr-black-hole/)** · English · [Türkçe](README.tr.md)
 
 ![Physical view: a Kerr black hole with a Doppler-beamed accretion disk](screenshots/physical.png)
 
