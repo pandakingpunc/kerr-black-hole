@@ -16,6 +16,11 @@ authors:
 version: 1.0.0
 date-released: 2026-10-04
 license: MIT
+doi: 10.5281/zenodo.23139593
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.23139594
+    description: "The archived v1.0.0 release on Zenodo."
 repository-code: "https://github.com/pandakingpunc/kerr-black-hole"
 url: "https://pandakingpunc.github.io/kerr-black-hole/"
 keywords:

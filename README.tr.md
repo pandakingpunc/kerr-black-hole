@@ -1,5 +1,7 @@
 # Kerr Kara Deliği
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23139593.svg)](https://doi.org/10.5281/zenodo.23139593)
+
 Dönen (Kerr) bir kara deliğin tarayıcıda, WebGL2 ile çalışan gerçek zamanlı genel görelilik ışın izleyicisi. Derleme adımı, bağımlılık ve dış dosya yok: gökyüzü, yıldızlar, Samanyolu ve yığılma diski dokusu tamamen kodla üretilir.
 
 **[Canlı demo](https://pandakingpunc.github.io/kerr-black-hole/)** · [English](README.md) · Türkçe
@@ -31,7 +33,7 @@ Kısayollar, URL parametreleri, doğrulama sonuçları ve proje yapısı için [
 
 ## Alıntı
 
-Bu yazılımı çalışmanızda kullanırsanız lütfen atıf yapın. Bilgiler [`CITATION.cff`](CITATION.cff) dosyasında; GitHub'daki **Cite this repository** düğmesi BibTeX ve APA çıktısı verir.
+Bu yazılımı çalışmanızda kullanırsanız lütfen atıf yapın. DOI [10.5281/zenodo.23139593](https://doi.org/10.5281/zenodo.23139593) her zaman en güncel sürüme (Zenodo arşivi) çözülür. Bilgiler [`CITATION.cff`](CITATION.cff) dosyasında; GitHub'daki **Cite this repository** düğmesi BibTeX ve APA çıktısı verir.
 
 ## Lisans
 

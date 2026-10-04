@@ -1,5 +1,7 @@
 # Kerr Black Hole
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23139593.svg)](https://doi.org/10.5281/zenodo.23139593)
+
 A real-time general-relativistic ray tracer for a rotating (Kerr) black hole, running entirely in the browser on WebGL2. No build step, no dependencies, no external assets: the sky, the stars, the Milky Way and the accretion-disk texture are all generated in code.
 
 **[Live demo](https://pandakingpunc.github.io/kerr-black-hole/)** · English · [Türkçe](README.tr.md)
@@ -86,7 +88,7 @@ screenshots/      images used in this README
 
 ## Citation
 
-If you use this software in your work, please cite it. The metadata is in [`CITATION.cff`](CITATION.cff), and GitHub's **Cite this repository** button (right sidebar) exports BibTeX and APA.
+If you use this software in your work, please cite it. The DOI [10.5281/zenodo.23139593](https://doi.org/10.5281/zenodo.23139593) always resolves to the latest version (Zenodo archive). The metadata is in [`CITATION.cff`](CITATION.cff), and GitHub's **Cite this repository** button (right sidebar) exports BibTeX and APA.
 
 ## License
 
