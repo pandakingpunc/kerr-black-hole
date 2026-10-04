@@ -29,6 +29,10 @@ python -m http.server 8000
 
 Kısayollar, URL parametreleri, doğrulama sonuçları ve proje yapısı için [English README](README.md) bölümlerine bakın.
 
+## Alıntı
+
+Bu yazılımı çalışmanızda kullanırsanız lütfen atıf yapın. Bilgiler [`CITATION.cff`](CITATION.cff) dosyasında; GitHub'daki **Cite this repository** düğmesi BibTeX ve APA çıktısı verir.
+
 ## Lisans
 
 [MIT](LICENSE)

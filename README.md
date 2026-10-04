@@ -84,6 +84,10 @@ dev/              numerical tests and tooling
 screenshots/      images used in this README
 ```
 
+## Citation
+
+If you use this software in your work, please cite it. The metadata is in [`CITATION.cff`](CITATION.cff), and GitHub's **Cite this repository** button (right sidebar) exports BibTeX and APA.
+
 ## License
 
 [MIT](LICENSE)

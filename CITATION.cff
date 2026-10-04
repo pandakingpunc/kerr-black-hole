@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "Kerr Black Hole: real-time general-relativistic ray tracing in the browser"
+abstract: >-
+  A real-time general-relativistic ray tracer for a rotating (Kerr) black hole
+  that runs entirely in the browser on WebGL2. Light rays are integrated along
+  null geodesics in Kerr-Schild coordinates, with a Novikov-Thorne accretion
+  disk, Doppler beaming and gravitational redshift, a free-fall camera that
+  crosses the event horizon, an EHT-style 1.3 mm view, video recording, and an
+  English/Turkish interface. The physics core is validated against analytic
+  results.
+authors:
+  - family-names: Karatum
+    given-names: Mustafa
+version: 1.0.0
+date-released: 2026-10-04
+license: MIT
+repository-code: "https://github.com/pandakingpunc/kerr-black-hole"
+url: "https://pandakingpunc.github.io/kerr-black-hole/"
+keywords:
+  - black hole
+  - general relativity
+  - Kerr metric
+  - ray tracing
+  - geodesics
+  - accretion disk
+  - gravitational lensing
+  - WebGL
+  - visualization
+  - astrophysics
