@@ -23,6 +23,9 @@ identifiers:
   - type: doi
     value: 10.5281/zenodo.23139594
     description: "The archived v1.0.0 release on Zenodo."
+  - type: doi
+    value: 10.5281/zenodo.23215964
+    description: "The archived v1.1.0 release on Zenodo."
 repository-code: "https://github.com/pandakingpunc/kerr-black-hole"
 url: "https://pandakingpunc.github.io/kerr-black-hole/"
 keywords:
