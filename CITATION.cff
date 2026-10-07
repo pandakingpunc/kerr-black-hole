@@ -8,13 +8,15 @@ abstract: >-
   null geodesics in Kerr-Schild coordinates, with a Novikov-Thorne accretion
   disk, Doppler beaming and gravitational redshift, a free-fall camera that
   crosses the event horizon, an EHT-style 1.3 mm view, video recording, and an
-  English/Turkish interface. The physics core is validated against analytic
-  results.
+  English/Turkish interface. A TON 618 quasar mode derives the disk
+  temperature from the mass, spin and Eddington ratio (Page-Thorne flux) and
+  adds a hot corona, a disk wind, a jet and broad-line region clouds. The
+  physics core is validated against analytic results.
 authors:
   - family-names: Karatum
     given-names: Mustafa
-version: 1.0.0
-date-released: 2026-10-04
+version: 1.1.0
+date-released: 2026-10-07
 license: MIT
 doi: 10.5281/zenodo.23139593
 identifiers:
@@ -34,3 +36,5 @@ keywords:
   - WebGL
   - visualization
   - astrophysics
+  - quasar
+  - TON 618
