@@ -216,6 +216,10 @@ uniform float uSkyBright, uStarBright, uStarsOn, uGrid, uPixAng;
 uniform float uJetOn;
 uniform float uJetBright;
 
+uniform float uCorona, uWind, uBLR;
+uniform float uBlrIn, uBlrOut;
+uniform float uFrame;
+
 ${NOISE}
 
 const float PI = 3.14159265358979;
@@ -438,6 +442,142 @@ vec3 jetSegment(vec3 x0, vec3 x1, float sCam, vec3 dir) {
   return col * dens * boost * L * uJetBright * 0.2;
 }
 
+/* --- Kuasar bileşenleri (TON 618 kipi): optik olarak ince, kendi ışığını yayan gaz --- */
+
+// Durağan bir yayıcıdan kameraya kayma çarpanı: g = s_kamera · √(−g_tt)
+float staticShift(vec3 x, float sCam) {
+  float r = kerrR(x);
+  float r3 = r * r * r;
+  float f = 2.0 * r3 / (r3 * r + uA * uA * x.z * x.z);
+  return sCam * sqrt(max(1.0 - f, 0.0));
+}
+
+/* Sıcak korona: iç diskin üstünü saran yassı Gauss bulutu (Compton saçılmalı, ~10⁹ K plazma).
+   Doğru parçası boyunca 3B Gauss integrali analitik alınır. */
+vec3 coronaSegment(vec3 x0, vec3 x1, float sCam) {
+  const vec3 isc = vec3(1.0 / 3.8, 1.0 / 3.8, 1.0 / 2.2);
+  vec3 p0 = x0 * isc, d = (x1 - x0) * isc;
+  float Lp = length(d);
+  float Ls = length(x1 - x0);
+  float sStar = Lp > 1e-5 ? -dot(p0, d) / Lp : 0.0;
+  float b2 = dot(p0, p0) - sStar * sStar;
+  if (b2 > 32.0) return vec3(0.0);
+  float I;
+  if (Lp < 1e-4) I = Ls * exp(-0.5 * dot(p0, p0));
+  else I = Ls / Lp * exp(-0.5 * b2) * 1.2533141 * (erfA((Lp - sStar) * 0.70710678) - erfA(-sStar * 0.70710678));
+  vec3 xc = mix(x0, x1, clamp(sStar / max(Lp, 1e-5), 0.0, 1.0));
+  float g = staticShift(xc, sCam);
+  float g2 = g * g;
+  return bbChroma(90000.0 * g) * (g2 * g2) * max(I, 0.0) * uCorona * 0.02;
+}
+
+/* Disk rüzgârı: diskten dik kalkıp dışa doğru bükülen, UV çizgi basıncıyla sürülen topaklı plazma
+   (Elvis 2000 huni modeli). Akış çizgisi: ρ = R₀ + z² / (2 W_L); R₀ diskteki kalkış yarıçapı.
+   Eğim z = W_L'de 45°, daha yukarıda diske doğru yatar. */
+const float W_L = 12.0;
+float windR0(vec3 x) { return length(x.xy) - x.z * x.z / (2.0 * W_L); }
+vec3 windEmission(vec3 x, float te) {
+  float z = abs(x.z);
+  float rho = length(x.xy);
+  float R0 = rho - z * z / (2.0 * W_L);
+  if (R0 < 6.0 || R0 > 21.0 || z < 0.3) return vec3(0.0);
+  float R = length(x);
+  float s = R - R0;
+  float win = smoothstep(6.0, 9.0, R0) * (1.0 - smoothstep(14.0, 21.0, R0));
+  win *= smoothstep(0.3, 3.5, z) * (1.0 - smoothstep(28.0, 62.0, R));
+  if (win <= 0.0) return vec3(0.0);
+  float ph = atan(x.y, x.x) * 0.15915494;
+  // akış boyunca uzamış lifler, ~0.1c ile dışa akar; iki yarıküre ayrı desen
+  float u = s - 0.1 * te;
+  float hs = x.z > 0.0 ? 0.0 : 31.7;
+  float n1 = gnoiseP(vec3(R0 * 0.45 + hs, ph * 12.0, u * 0.11), 12.0);
+  float n2 = gnoiseP(vec3(R0 * 1.1 - hs, ph * 31.0, u * 0.26 + 5.3), 31.0);
+  float fil = clamp(0.38 + 1.4 * n1 + 0.6 * n2, 0.0, 1.6);
+  float dens = win * fil * fil * fil * (R0 / rho) * (R0 / rho);
+  // diskin ışığıyla aydınlanan gaz: saçılmış mavi süreklilik + UV çizgileri
+  return vec3(0.52, 0.66, 1.0) * dens * (10.0 / max(R, 6.0));
+}
+
+/* Geniş çizgi bölgesi (BLR): kuasarın ışığıyla iyonlaşmış, Kepler hızlarıyla dönen soğuk bulutlar.
+   Kalın disk biçimli, iç kenarı TON 618 için birkaç yüz M (ışık yılı mertebesi). Balmer çizgileri: pembe. */
+vec3 blrEmission(vec3 x, float te) {
+  float R = length(x);
+  if (R < uBlrIn * 0.55 || R > uBlrOut) return vec3(0.0);
+  float lr = log(R / uBlrIn) / log(uBlrOut / uBlrIn);
+  float radial = smoothstep(-0.25, 0.12, lr) * (1.0 - smoothstep(0.3, 1.0, lr));
+  float el = x.z / R;
+  float vert = exp(-el * el / (2.0 * 0.34 * 0.34));
+  if (radial * vert < 1e-3) return vec3(0.0);
+  // tepe yarıçapındaki Kepler hızıyla katı dönme (bulutlar yavaşça döner)
+  float om = te * pow(uBlrIn * 1.6, -1.5);
+  float c = cos(om), sn = sin(om);
+  vec3 xr = vec3(c * x.x + sn * x.y, -sn * x.x + c * x.y, x.z) / uBlrIn;
+  float n1 = gnoise(xr * 4.2 + 3.7);
+  float n2 = gnoise(xr * 11.0 - 1.3);
+  float cl = clamp(0.26 + 1.3 * n1 + 0.5 * n2, 0.0, 1.4);
+  cl *= cl;
+  float dens = radial * vert * cl * cl * (uBlrIn / R) * (uBlrIn / R);
+  float hot = smoothstep(0.35, 0.0, lr);   // içte yüksek iyonlaşma: daha beyaz/mavi
+  return mix(vec3(1.0, 0.36, 0.52), vec3(0.85, 0.75, 1.0), hot * 0.5) * dens;
+}
+
+// Doğru parçası boyunca titreşimli örnekleme (TAA ile yakınsar)
+vec3 quasarVolume(vec3 x0, vec3 x1, float te, float sCam, float rnd) {
+  vec3 acc = vec3(0.0);
+  float R0 = length(x0), R1 = length(x1);
+  float Ls = length(x1 - x0);
+  float Rmax = max(R0, R1), Rmin = min(R0, R1);
+  // rüzgâr: yalnız huni kabuğuna (6 < R₀ < 21) değebilecek parçalar örneklenir
+  float wa = windR0(x0), wb = windR0(x1), wm = windR0(0.5 * (x0 + x1));
+  if (uWind > 0.0 && Rmax > 6.0 && Rmin < 62.0 && max(wa, max(wb, wm)) > 4.0 && min(wa, min(wb, wm)) < 23.0) {
+    int n = int(clamp(ceil(Ls / 2.0), 1.0, 6.0));
+    float w = Ls / float(n);
+    vec3 e = vec3(0.0);
+    for (int k = 0; k < 6; k++) {
+      if (k >= n) break;
+      vec3 p = mix(x0, x1, (float(k) + fract(rnd + float(k) * 0.618034)) / float(n));
+      e += windEmission(p, te);
+    }
+    float g = sCam * sqrt(max(1.0 - 2.0 / max(0.5 * (R0 + R1), 2.5), 0.0));
+    acc += e * w * uWind * 0.065 * g * g * g * g;
+  }
+  if (uBLR > 0.0 && Rmax > uBlrIn * 0.55 && Rmin < uBlrOut) {
+    int n = int(clamp(ceil(Ls / (0.07 * uBlrIn)), 1.0, 6.0));
+    float w = Ls / float(n);
+    vec3 e = vec3(0.0);
+    for (int k = 0; k < 6; k++) {
+      if (k >= n) break;
+      vec3 p = mix(x0, x1, (float(k) + fract(rnd + float(k) * 0.618034)) / float(n));
+      e += blrEmission(p, te);
+    }
+    float s2 = sCam * sCam;
+    acc += e * w * uBLR * (1.0 / uBlrIn) * s2 * s2;
+  }
+  return acc;
+}
+
+/* Kaçış küresinin dışında uzay-zaman neredeyse düzdür: BLR'nin kalanı kaçış yönündeki doğru boyunca,
+   log r'de katmanlı örneklerle toplanır (ışınları yüzlerce M ötesine RK4 ile izlemeye gerek kalmaz). */
+vec3 blrTail(vec3 x, vec3 d, float te, float sCam, float rnd) {
+  float Ra = max(length(x), uBlrIn * 0.55);
+  if (uBLR <= 0.0 || Ra >= uBlrOut) return vec3(0.0);
+  float xd = dot(x, d);
+  float c0 = xd * xd - dot(x, x);   // |x + s d| = R  →  s = −x·d + √((x·d)² − |x|² + R²)
+  float lnr = log(uBlrOut / Ra);
+  float sPrev = -xd + sqrt(max(c0 + Ra * Ra, 0.0));
+  vec3 e = vec3(0.0);
+  for (int k = 0; k < 16; k++) {
+    float R1 = Ra * exp(lnr * float(k + 1) / 16.0);
+    float s1 = -xd + sqrt(max(c0 + R1 * R1, 0.0));
+    float Rj = Ra * exp(lnr * (float(k) + fract(rnd + float(k) * 0.618034)) / 16.0);
+    float sj = -xd + sqrt(max(c0 + Rj * Rj, 0.0));
+    e += blrEmission(x + d * sj, te - sj) * (s1 - sPrev);
+    sPrev = s1;
+  }
+  float s2 = sCam * sCam;
+  return e * uBLR * (1.0 / uBlrIn) * s2 * s2;
+}
+
 /* --- Yıldızlar: küp yüzü ızgarası, piksel izdüşümüne göre analitik süzme --- */
 vec2 cubeUV(vec3 d, out float face) {
   vec3 ad = abs(d);
@@ -547,10 +687,13 @@ void main() {
   vec3 col = vec3(0.0);
   float Acc = 0.0;
   bool escaped = false;
+  // hacim örneklemesi için piksel ve kare başına titreşim (interleaved gradient noise)
+  float rnd = fract(fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) + uFrame * 0.618034);
   vec3 x = uCamPos;
   vec3 q = vec3(0.0);
   vec3 dx = -normalize(uCamPos);
   float sCam = 1.0;
+  float tEsc = 0.0;
   bool valid = qm.x > 1e-5;
   if (valid) {
     sCam = 1.0 / qm.x;
@@ -578,6 +721,12 @@ void main() {
       if (uJetOn > 0.5) {
         col += (1.0 - Acc) * jetSegment(x, xn, sCam, normalize(dx));
       }
+      if (uCorona > 0.0) {
+        col += (1.0 - Acc) * coronaSegment(x, xn, sCam);
+      }
+      if (uWind + uBLR > 0.0) {
+        col += (1.0 - Acc) * quasarVolume(x, xn, uTime + t, sCam, fract(rnd + float(i) * 0.7548777));
+      }
       if (uDiskOn > 0.5 && x.z * xn.z < 0.0) {
         float fr = x.z / (x.z - xn.z);
         vec2 xl = mix(x.xy, xn.xy, fr);
@@ -601,7 +750,7 @@ void main() {
       deriv(x, q, dx, dq, dtl, r);
       if (uInside == 0 && (r < uRh * 1.01 + 0.005 || dot(q, q) > 3600.0)) break;
       if (uInside == 1 && (dot(q, q) > 640000.0 * q0 * q0 || r < 0.05)) break;
-      if (r > uResc && dot(x, dx) > 0.0) { escaped = true; break; }
+      if (r > uResc && dot(x, dx) > 0.0) { escaped = true; tEsc = t; break; }
       if (!(r == r)) break;
     }
   }
@@ -609,7 +758,7 @@ void main() {
   vec3 ddx = dFdx(dir), ddy = dFdy(dir);
   float fp = max(max(length(ddx), length(ddy)) * 0.5, uPixAng * 0.35);
   vec3 sky = skyColor(dir, ddx, ddy, fp, sCam);
-  if (escaped) col += (1.0 - Acc) * sky;
+  if (escaped) col += (1.0 - Acc) * (sky + blrTail(x, dir, uTime + tEsc, sCam, fract(rnd + 0.37)));
   outColor = vec4(col, 1.0);
 }`;
 

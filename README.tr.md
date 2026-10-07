@@ -15,9 +15,12 @@ Dönen (Kerr) bir kara deliğin tarayıcıda, WebGL2 ile çalışan gerçek zama
 - **Gölge, foton halkası ve mercekleme.** Hızlı dönen deliğin D biçimli gölgesi, Einstein halkası ve gökyüzüne ızgara çizen lens haritası.
 - **Kara deliğe düşüş.** Kamera olay ufkunu geçen gerçek bir zamansı jeodezik izler.
 - **EHT gözüyle:** 1,3 mm VLBI çözünürlüğünde M87* benzeri görüntü.
-- **Göreli jet**, Interstellar tarzı kalın disk, ışık yolları diyagramı, açıklamalı otomatik tur ve 8 hazır sahne.
+- **TON 618 kuasar kipi.** Sol üstteki *Kerr / TON 618* düğmesiyle (ya da `Q`) bilinen en büyük kara deliklerden birine geçilir: 4,07×10¹⁰ M☉, L ≈ 4×10⁴⁰ W, z = 2,219. Disk sıcaklığı kütle, dönme ve parlaklıktan hesaplanır (Page-Thorne akısı, yaklaşık 25.000 K: disk mavi-beyazdır); kuasarın çevresi eklenir: sıcak X-ışını koronası, huni biçimli disk rüzgârı, jet ve ölçülen yarıçap-parlaklık ilişkisine göre birkaç yüz M ötedeki geniş çizgi bölgesi bulutları. Geri dönünce önceki ayarların geri gelir.
+- **Göreli jet**, Interstellar tarzı kalın disk, ışık yolları diyagramı, açıklamalı otomatik tur ve 9 hazır sahne.
 - **Video kaydı ve ekran görüntüsü:** `R` ile MP4 (veya WebM) kaydı, `S` ile PNG.
 - **İngilizce ve Türkçe arayüz.** Varsayılan İngilizcedir; sol üstteki EN/TR düğmesiyle değişir ve seçim hatırlanır (`?lang=tr` ile de açılabilir).
+
+![TON 618 kuasar kipi](screenshots/ton618.png)
 
 ## Çalıştırma
 
@@ -29,7 +32,7 @@ python -m http.server 8000
 
 **WebGL2** ve `EXT_color_buffer_float` desteği gerekir (güncel Chrome, Edge, Firefox veya Safari). Çözünürlük, yaklaşık 60 fps için otomatik ayarlanır.
 
-Kısayollar, URL parametreleri, doğrulama sonuçları ve proje yapısı için [English README](README.md) bölümlerine bakın.
+TON 618 kipi doğrudan `?object=ton618` (ya da `?preset=ton618`) ile açılabilir. Kısayollar, URL parametreleri, doğrulama sonuçları ve proje yapısı için [English README](README.md) bölümlerine bakın.
 
 ## Alıntı
 

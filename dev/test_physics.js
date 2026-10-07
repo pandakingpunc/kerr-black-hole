@@ -130,6 +130,38 @@ check('foton yörüngesi a=0.9 ileri', P.photonOrbit(0.9, true), 1.55785, 1e-4);
   console.log(`NT profili a=0.9: r_in=${prof9.rin.toFixed(3)} r_peak=${prof9.rPeak.toFixed(3)}`);
 }
 
+// 5b) Page–Thorne akı normalizasyonu: enerji korunumu ∫ 4π r F E dr = 1 − E_isco (Ṁ = 1)
+for (const a of [0, 0.9, 0.99]) {
+  const R = 20000, n = 20000;
+  const { rs, F } = P.diskFlux(a, R, n);
+  let L = 0;
+  for (let i = 1; i <= n; i++) {
+    const f0 = 4 * Math.PI * rs[i - 1] * F[i - 1] * P.circular(rs[i - 1], a).E;
+    const f1 = 4 * Math.PI * rs[i] * F[i] * P.circular(rs[i], a).E;
+    L += 0.5 * (f0 + f1) * (rs[i] - rs[i - 1]);
+  }
+  L += 1.5 / R;   // r > R kuyruğu (Newton)
+  check(`disk ışınımı = verim (a=${a})`, L / P.efficiency(a), 1, 1e-3);
+}
+check('verim a=0', P.efficiency(0), 1 - Math.sqrt(8 / 9), 1e-9);
+
+// 5c) Kuasar diski: Newton/Shakura–Sunyaev ölçeklemesi T ∝ (L/L_Edd)^{1/4} M^{-1/4}
+{
+  const q1 = P.quasarDisk(0.9, 4.07e10, 0.1);
+  const q2 = P.quasarDisk(0.9, 4.07e8, 0.1);
+  const q3 = P.quasarDisk(0.9, 4.07e10, 1.6);
+  check('T_tepe ∝ M^{-1/4}', q2.Tpeak / q1.Tpeak, Math.pow(100, 0.25), 1e-9);
+  check('T_tepe ∝ (L/L_Edd)^{1/4}', q3.Tpeak / q1.Tpeak, 2, 1e-9);
+  // Schwarzschild, Newton (Shakura–Sunyaev) tepe sıcaklığıyla karşılaştırma (yalnız bilgi: GR tepeyi düşürür)
+  const q0 = P.quasarDisk(0, 1e8, 1);
+  const GM = 1.32712440018e20 * 1e8, c = 2.99792458e8;
+  const rin = 6 * GM / (c * c);
+  const Tn = Math.pow(3 * GM * q0.mdot / (8 * Math.PI * 5.670374419e-8 * rin ** 3) * Math.pow(36 / 49, 3) / 7, 0.25);
+  console.log(`  Schwarzschild 1e8 M☉, L_Edd: T_tepe ${q0.Tpeak.toFixed(0)} K (Newton ${Tn.toFixed(0)} K), Ṁ ${q0.mdotSunYr.toFixed(2)} M☉/yıl`);
+  const ton = P.quasarDisk(0.9, 4.07e10, 4e40 / (1.25707e31 * 4.07e10));
+  console.log(`  TON 618 (a=0.9, 4.07e10 M☉, 4e40 W): L/L_Edd ${(ton.L / ton.Ledd).toFixed(3)}, η ${ton.eta.toFixed(3)}, Ṁ ${ton.mdotSunYr.toFixed(1)} M☉/yıl, T_tepe ${ton.Tpeak.toFixed(0)} K`);
+}
+
 // 6) Serbest düşüş: ufku geçer mi, özzaman
 {
   const a = 0;

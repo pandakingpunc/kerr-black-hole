@@ -56,7 +56,15 @@
     autoRes: true,
     eht: false,
     plungeSpeed: 1.0,
+    // kuasar (TON 618 kipi)
+    object: 'kerr',
+    edd: 0.078,
+    physT: false,
+    corona: 0,
+    wind: 0,
+    blr: 0,
   };
+  const DEFAULTS = { ...params };
   const QUALITY = {
     dusuk: { stepK: 0.11, maxSteps: 220, maxScale: 0.5 },
     orta: { stepK: 0.085, maxSteps: 320, maxScale: 0.7 },
@@ -68,22 +76,39 @@
     m87: { m: 6.5e9 },
     garg: { m: 1e8 },
     stellar: { m: 10 },
+    ton618: { m: 4.07e10 },
   };
+  // TON 618: L_bol ≈ 4×10⁴⁰ W (M_V = −30,7), M ≈ 4,07×10¹⁰ M☉ → L/L_Edd ≈ 0,078; radyo-gürültülü (jet açık)
+  const OBJECTS = {
+    kerr: {},
+    ton618: { set: {
+      mass: 'ton618', spin: 0.9, physT: true, edd: 0.078, corona: 1, wind: 1, blr: 1, jet: true,
+      disk: true, rout: 40, density: 1.1, turb: 1, haze: 0.6, bright: 1, beaming: 1, bolo: true, interstellar: false,
+      grid: false, eht: false, skyBright: 0.5, starBright: 0.5, exposure: 1.3, bloom: 1.4,
+      incl: 68, dist: 42, fov: 56, roll: 0,
+    } },
+  };
+  // geçişte saklanıp geri yüklenen ayarlar (fiziksel sıcaklık temp'i de değiştirir)
+  const OBJ_KEYS = [...Object.keys(OBJECTS.ton618.set), 'temp'];
   const PRESETS = {
-    fiziksel: { set: { roll: 0, spin: 0.9, incl: 82, dist: 28, fov: 50, temp: 4500, beaming: 1, bolo: true, interstellar: false, density: 1.35, haze: 0.35, rout: 22, disk: true, grid: false, eht: false, jet: false, exposure: 1.4 } },
-    gargantua: { set: { roll: 0, spin: 0.99, incl: 87, dist: 22, fov: 46, temp: 4200, beaming: 0, bolo: true, interstellar: true, density: 1.8, haze: 0.6, rout: 18, disk: true, grid: false, eht: false, jet: false, exposure: 1.2 } },
+    fiziksel: { obj: 'kerr', set: { roll: 0, spin: 0.9, incl: 82, dist: 28, fov: 50, temp: 4500, beaming: 1, bolo: true, interstellar: false, density: 1.35, haze: 0.35, rout: 22, disk: true, grid: false, eht: false, jet: false, exposure: 1.4 } },
+    gargantua: { obj: 'kerr', set: { roll: 0, spin: 0.99, incl: 87, dist: 22, fov: 46, temp: 4200, beaming: 0, bolo: true, interstellar: true, density: 1.8, haze: 0.6, rout: 18, disk: true, grid: false, eht: false, jet: false, exposure: 1.2 } },
     kutup: { set: { roll: 0, incl: 6, dist: 30, fov: 46, disk: true, grid: false, eht: false } },
     kenar: { set: { roll: 0, incl: 89.5, dist: 17, fov: 55, disk: true, grid: false, eht: false } },
     yakin: { set: { roll: 0, incl: 84, dist: 7.5, fov: 75, disk: true, grid: false, eht: false } },
-    lens: { set: { roll: 0, disk: false, grid: true, incl: 90, dist: 16, fov: 70, eht: false, jet: false } },
-    m87: { set: { spin: 0.9, incl: 17, dist: 70, fov: 22, roll: 90, rout: 10, eht: true, disk: true, grid: false, beaming: 1, bolo: true, interstellar: false, temp: 6000, jet: false } },
-    jet: { set: { roll: 0, jet: true, incl: 64, dist: 48, fov: 56, disk: true, grid: false, eht: false } },
+    lens: { obj: 'kerr', set: { roll: 0, disk: false, grid: true, incl: 90, dist: 16, fov: 70, eht: false, jet: false } },
+    m87: { obj: 'kerr', set: { spin: 0.9, incl: 17, dist: 70, fov: 22, roll: 90, rout: 10, eht: true, disk: true, grid: false, beaming: 1, bolo: true, interstellar: false, temp: 6000, jet: false } },
+    jet: { obj: 'kerr', set: { roll: 0, jet: true, incl: 64, dist: 48, fov: 56, disk: true, grid: false, eht: false } },
+    ton618: { obj: 'ton618', set: { roll: 0, incl: 68, dist: 42, fov: 56, disk: true, grid: false, eht: false } },
   };
 
-  // URL ile başlangıç ayarları (test ve paylaşım için)
-  if (qs.has('preset') && PRESETS[qs.get('preset')]) Object.assign(params, PRESETS[qs.get('preset')].set);
+  // URL ile başlangıç ayarları (test ve paylaşım için): nesne → hazır sahne → tek tek ayarlar
+  const qPreset = PRESETS[qs.get('preset')];
+  params.object = (qs.get('object') || (qPreset && qPreset.obj)) === 'ton618' ? 'ton618' : 'kerr';
+  if (params.object === 'ton618') Object.assign(params, OBJECTS.ton618.set);
+  if (qPreset) Object.assign(params, qPreset.set);
   for (const k of Object.keys(params)) {
-    if (!qs.has(k)) continue;
+    if (!qs.has(k) || k === 'object') continue;
     const v = qs.get(k);
     if (typeof params[k] === 'number') params[k] = parseFloat(v);
     else if (typeof params[k] === 'boolean') params[k] = v === '1' || v === 'true';
@@ -206,6 +231,24 @@
     profTex = createTex(PROF_N, 1, gl.R16F, gl.RED, gl.FLOAT, prof.table);
   }
   updateProfile();
+
+  /* --- Kuasar: kütle, dönme ve L/L_Edd'den fiziksel disk sıcaklığı ve BLR yarıçapı --- */
+  function quasarState() {
+    const M = MASSES[params.mass].m;
+    const q = P.quasarDisk(params.spin, M, params.edd, prof.fPeak);
+    // Hβ BLR yarıçapı: R–L ilişkisi (Bentz vd. 2013), λL₅₁₀₀ ≈ L_bol / 9
+    const Rld = Math.pow(10, 1.527) * Math.pow(q.L * 1e7 / 9 / 1e44, 0.533);   // ışık-günü
+    const rgLd = M * 1476.625 / 2.59020684e13;                                   // GM/c² [ışık-günü]
+    q.blrLd = Rld;
+    q.blrM = Rld / rgLd;
+    return q;
+  }
+  function applyPhysT() {
+    if (!params.physT) return;
+    params.temp = clamp(quasarState().Tpeak, 700, 150000);
+    syncControl('temp');
+  }
+  if (params.physT) params.temp = clamp(quasarState().Tpeak, 700, 150000);   // panel henüz kurulmadı
 
   /* --- Gökyüzü küp haritası --- */
   const SKY_SIZE = qs.has('skysize') ? parseInt(qs.get('skysize'), 10) : 1024;
@@ -552,6 +595,7 @@
     const k = e.key.toLowerCase();
     if (k === 't') { setMode('tour'); return; }
     if (!['h', 'f', 'i', '?', 'p', 's', 'r'].includes(k)) stopTour();
+    if (k === 'q') { setObject(params.object === 'ton618' ? 'kerr' : 'ton618'); return; }
     if (k === 'h') document.body.classList.toggle('hide-ui');
     else if (k === 'f') toggleFullscreen();
     else if (k === ' ') { e.preventDefault(); params.paused = !params.paused; syncControl('paused'); }
@@ -564,7 +608,7 @@
     else if (k === 'i' || k === '?') document.body.classList.toggle('show-info');
     else if (k === 'escape' && document.body.classList.contains('show-info')) document.body.classList.remove('show-info');
     else if (k === 'escape' && plunge.active) endPlunge(false);
-    else if (/^[1-8]$/.test(k)) applyPreset(Object.keys(PRESETS)[parseInt(k, 10) - 1]);
+    else if (/^[1-9]$/.test(k)) applyPreset(Object.keys(PRESETS)[parseInt(k, 10) - 1]);
   });
   function toggleFullscreen() {
     if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
@@ -592,7 +636,7 @@
     ] },
     { title: 'sec.disk', open: true, items: [
       { t: 'toggle', k: 'disk', label: 'p.disk' },
-      { t: 'range', k: 'temp', label: 'p.temp', min: 2500, max: 30000, step: 50, log: true, f: (v) => I.int(v) + ' K' },
+      { t: 'range', k: 'temp', label: 'p.temp', min: 2500, max: 100000, step: 50, log: true, f: (v) => I.int(v) + ' K' },
       { t: 'range', k: 'rout', label: 'p.rout', min: 6, max: 60, step: 0.5, f: (v) => fmt(v, 1) + ' M' },
       { t: 'range', k: 'density', label: 'p.density', min: 0.1, max: 5, step: 0.01, log: true, f: (v) => fmt(v, 2) },
       { t: 'range', k: 'turb', label: 'p.turb', min: 0, max: 1, step: 0.01, f: (v) => fmt(v * 100, 0) + '%' },
@@ -606,6 +650,14 @@
       { t: 'toggle', k: 'bolo', label: 'p.bolo' },
       { t: 'toggle', k: 'interstellar', label: 'p.interstellar' },
       { t: 'note', text: 'n.rel' },
+    ] },
+    { title: 'sec.quasar', open: false, items: [
+      { t: 'range', k: 'edd', label: 'p.edd', min: 0.001, max: 1, step: 0.0001, log: true, f: (v) => fmt(v, 3) + ' · ' + sci(v * 1.25707e31 * MASSES[params.mass].m, 1) + ' W' },
+      { t: 'toggle', k: 'physT', label: 'p.physT' },
+      { t: 'range', k: 'corona', label: 'p.corona', min: 0, max: 3, step: 0.01, f: offOr },
+      { t: 'range', k: 'wind', label: 'p.wind', min: 0, max: 3, step: 0.01, f: offOr },
+      { t: 'range', k: 'blr', label: 'p.blr', min: 0, max: 3, step: 0.01, f: offOr },
+      { t: 'note', text: 'n.quasar' },
     ] },
     { title: 'sec.sky', open: false, items: [
       { t: 'toggle', k: 'stars', label: 'p.stars' },
@@ -629,6 +681,16 @@
     ] },
   ];
 
+  function offOr(v) { return v < 0.005 ? T('off') : fmt(v, 2) + '×'; }
+  // bilimsel gösterim: 4.0×10⁴⁰
+  function sci(v, d) {
+    if (!(v > 0)) return '0';
+    let e = Math.floor(Math.log10(v));
+    let m = v / Math.pow(10, e);
+    if (+m.toFixed(d) >= 10) { m /= 10; e++; }
+    const sup = String(e).split('').map((c) => (c === '-' ? '⁻' : '⁰¹²³⁴⁵⁶⁷⁸⁹'[+c])).join('');
+    return fmt(m, d) + '×10' + sup;
+  }
   function toSlider(it, v) { return it.log ? Math.log(v / it.min) / Math.log(it.max / it.min) : (v - it.min) / (it.max - it.min); }
   function fromSlider(it, s) { return it.log ? it.min * Math.pow(it.max / it.min, s) : it.min + s * (it.max - it.min); }
 
@@ -640,6 +702,7 @@
     SPEC.forEach((sec, si) => {
       const det = document.createElement('details');
       det.open = si < wasOpen.length ? wasOpen[si] : !!sec.open;
+      det.dataset.sec = sec.title;
       const sum = document.createElement('summary');
       sum.textContent = T(sec.title);
       det.appendChild(sum);
@@ -725,7 +788,10 @@
 
   function onParam(k) {
     stopTour();
-    if (k === 'spin') { updateProfile(); diagDirty = true; if (plunge.active) endPlunge(true); }
+    if (k === 'spin') { updateProfile(); applyPhysT(); diagDirty = true; if (plunge.active) endPlunge(true); }
+    if (k === 'temp' && params.physT) { params.physT = false; syncControl('physT'); }
+    if (k === 'physT' || k === 'edd') applyPhysT();
+    if (k === 'mass') { applyPhysT(); syncControl('edd'); }
     if (k === 'dist') { cam.tDist = clamp(params.dist, minDist(), 400); diagDirty = true; }
     if (k === 'incl') { cam.tIncl = params.incl * DEG; }
     if (k === 'quality') { if (!fixedScale) setScale(Math.min(scale, QUALITY[params.quality].maxScale)); }
@@ -734,23 +800,62 @@
     histValid = false;
   }
 
-  function applyPreset(key, quiet) {
-    const pr = PRESETS[key];
-    if (!pr) return;
-    if (!quiet) stopTour();
-    if (plunge.active) endPlunge(true);
-    const prevSpin = params.spin;
-    Object.assign(params, pr.set);
-    for (const k of Object.keys(controls)) syncControl(k);
+  // Toplu ayar değişikliğinden sonra profil, panel, kamera hedefleri ve geçmiş tamponu
+  function refreshParams(prevSpin) {
     if (params.spin !== prevSpin) updateProfile();
+    applyPhysT();
+    for (const k of Object.keys(controls)) syncControl(k);
     document.body.classList.toggle('eht', params.eht);
     cam.tDist = clamp(params.dist, minDist(), 400);
     cam.tIncl = params.incl * DEG;
     updateModeButtons();
     diagDirty = true;
     histValid = false;
+  }
+
+  function applyPreset(key, quiet) {
+    const pr = PRESETS[key];
+    if (!pr) return;
+    if (!quiet) stopTour();
+    if (plunge.active) endPlunge(true);
+    if (pr.obj && pr.obj !== params.object) setObject(pr.obj, true);
+    const prevSpin = params.spin;
+    Object.assign(params, pr.set);
+    refreshParams(prevSpin);
     if (!quiet) toast(T('preset.' + key), '');
   }
+
+  /* --- Nesne: genel Kerr kara deliği ↔ TON 618 kuasarı. Geri dönüşte önceki ayarlar geri gelir. --- */
+  let objSnapshot = null;
+  function setObject(o, quiet) {
+    if (!OBJECTS[o] || o === params.object) return;
+    if (!quiet) stopTour();
+    if (plunge.active) endPlunge(true);
+    const prevSpin = params.spin;
+    if (o === 'ton618') {
+      objSnapshot = {};
+      for (const k of OBJ_KEYS) objSnapshot[k] = params[k];
+      Object.assign(params, OBJECTS.ton618.set);
+    } else {
+      const src = objSnapshot || DEFAULTS;
+      for (const k of OBJ_KEYS) params[k] = src[k];
+      objSnapshot = null;
+    }
+    params.object = o;
+    refreshParams(prevSpin);
+    updateObjectUi();
+    if (o === 'ton618') { const d = $('#panel details[data-sec="sec.quasar"]'); if (d) d.open = true; }
+    if (!quiet) toast(T('obj.' + o + '.t'), T('obj.' + o + '.s'), 3600);
+  }
+  function updateObjectUi() {
+    const q = params.object === 'ton618';
+    document.body.classList.toggle('quasar', q);
+    $('#title h1').dataset.i18n = q ? 'ui.title.ton618' : 'ui.title';
+    $('#title p').dataset.i18n = q ? 'ui.subtitle.ton618' : 'ui.subtitle';
+    I.apply($('#title'));
+    document.querySelectorAll('#object button').forEach((b) => b.classList.toggle('on', b.dataset.object === params.object));
+  }
+  document.querySelectorAll('#object button').forEach((b) => b.addEventListener('click', () => setObject(b.dataset.object)));
 
   /* --- Otomatik tur: sahneler arasında kararma geçişli, açıklamalı gezinti --- */
   const TOUR = [
@@ -761,6 +866,7 @@
     { k: 'lens', p: ['lens'], dur: 11 },
     { k: 'm87', p: ['m87'], dur: 9 },
     { k: 'jet', p: ['fiziksel', 'jet'], dur: 11 },
+    { k: 'ton618', p: ['ton618'], dur: 14 },
     { k: 'plunge', p: ['fiziksel'], plunge: true },
   ];
   const tour = { active: false, i: -1, t0: 0, fade: 1 };
@@ -843,7 +949,7 @@
     const X = [rr * Math.cos(ph), rr * Math.sin(ph), 0];
     const u = P.staticObserver(X, a);
     if (!u) return;
-    const T = P.cameraTetrad(X, u, [-Math.cos(ph), -Math.sin(ph), 0], [0, 0, 1], a);
+    const tet = P.cameraTetrad(X, u, [-Math.cos(ph), -Math.sin(ph), 0], [0, 0, 1], a);
     const shadow = Math.asin(Math.min(1, 5.4 / R));
     const amax = Math.min(1.35, shadow * 2.4);
     const N = 41;
@@ -855,7 +961,7 @@
     const dv = new Float64Array(7);
     for (let i = 0; i < N; i++) {
       const al = -amax + 2 * amax * i / (N - 1);
-      const q = [0, 1, 2, 3].map((k) => T.Q0[k] + Math.sin(al) * T.Q1[k] + Math.cos(al) * T.Q3[k]);
+      const q = [0, 1, 2, 3].map((k) => tet.Q0[k] + Math.sin(al) * tet.Q1[k] + Math.cos(al) * tet.Q3[k]);
       const sc = 1 / q[0];
       const st = new Float64Array([X[0], X[1], X[2], q[1] * sc, q[2] * sc, q[3] * sc, 0]);
       const pts = [[X[0], X[1]]];
@@ -1000,6 +1106,10 @@
     lines.push(`<b>${T('hud.horizonRadius')}</b> <span class="hot">${fmtLen(Math.sqrt(rh * rh + a * a) * rg)}</span>   <b>${T('hud.iscoPeriod')}</b> <span class="hot">${fmtTime(Tisco * tg)}</span>`);
     lines.push(`<b>${T('hud.camera')}</b> r = ${fmt(r, 2)} M · θ = ${fmt(Math.acos(clamp(X[2] / Math.max(r, 1e-6), -1, 1)) / DEG, 1)}°   <b>${T('hud.clock')}</b> <span class="cool">dτ/dt = ${camInfo.inside ? T('hud.insideHorizon') : fmt(dtau, 4)}</span>`);
     lines.push(`<b>${T('hud.sim')}</b> ${params.paused ? T('hud.paused') : T('hud.simRate', { ts: fmt(params.timeScale, 1), real: fmtTime(params.timeScale * tg) })}`);
+    if (params.physT || params.object === 'ton618') {
+      const qd = quasarState();
+      lines.push(`<b>${T('hud.lum')}</b> <span class="hot">${sci(qd.L, 1)} W</span> = ${sci(qd.L / 3.828e26, 1)} L☉ · L/L<sub>Edd</sub> ${fmt(params.edd, 3)}   <b>${T('hud.accr')}</b> ${fmt(qd.mdotSunYr, qd.mdotSunYr < 10 ? 2 : 0)} ${T('u.msunyr')} · η ${fmt(qd.eta, 3)}   <b>BLR</b> ${fmt(qd.blrLd / 365.25, qd.blrLd < 365 ? 2 : 1)} ${T('u.ly')} ≈ ${I.int(qd.blrM)} M`);
+    }
     lines.push(`<b>${T('hud.trace')}</b> ${T('hud.traceInfo', { rw, rh: rhgt, ow, oh, n: q.maxSteps, fps: Math.round(fpsAvg) })}`);
     $('#hud').innerHTML = lines.join('\n');
 
@@ -1142,7 +1252,7 @@
 
   function render(camInfo, dt) {
     const q = QUALITY[params.quality];
-    const T = camInfo.T;
+    const tet = camInfo.T;
     const a = camInfo.a;
     const X = camInfo.X;
     const rCam = P.kerrR(X[0], X[1], X[2], a);
@@ -1151,9 +1261,12 @@
     // dikey ekranlarda yatay görüş çok daralmasın
     const aspect = cw / ch;
     const tanHalf = Math.tan(cam.fov * DEG / 2) * Math.max(1, Math.min(1 / aspect, 2) * 0.8);
+    // BLR: iç kenar ≈ yarım Hβ yarıçapı (yüksek iyonlaşma çizgileri içte), dış kenar 2,5 katı
+    let blrIn = 100, blrOut = 400;
+    if (params.blr > 0) { blrIn = clamp(0.5 * quasarState().blrM, 30, 3000); blrOut = blrIn * 5; }
 
     // Kamera hareketi → TAA karışımı
-    const sig = [X[0], X[1], X[2], T.eF[1], T.eF[2], T.eF[3], cam.fov];
+    const sig = [X[0], X[1], X[2], tet.eF[1], tet.eF[2], tet.eF[3], cam.fov];
     let moving = 0;
     if (lastCamSig) {
       let d = 0;
@@ -1178,7 +1291,7 @@
     gl.viewport(0, 0, rw, rhgt);
     const tr = progs.trace.use();
     tr.set('uRes', [rw, rhgt]).set('uCenter', [rw * 0.5 - centerShift * scale, rhgt * 0.5]).set('uJitter', jit).set('uTanHalfFov', tanHalf)
-      .set('uQ0', T.Q0).set('uQ1', T.Q1).set('uQ2', T.Q2).set('uQ3', T.Q3)
+      .set('uQ0', tet.Q0).set('uQ1', tet.Q1).set('uQ2', tet.Q2).set('uQ3', tet.Q3)
       .set('uCamPos', X).set('uA', a).set('uRh', rh).set('uInside', camInfo.inside ? 1 : 0)
       .set('uMaxSteps', q.maxSteps).set('uStepK', q.stepK).set('uResc', Math.max(2.2 * rCam, 90))
       .set('uTime', simTime)
@@ -1191,7 +1304,9 @@
       .set('uProfN', PROF_N)
       .set('uSkyBright', params.skyBright).set('uStarBright', params.starBright).set('uStarsOn', params.stars ? 1 : 0)
       .set('uGrid', params.grid ? 1 : 0).set('uPixAng', 2 * tanHalf / rhgt)
-      .set('uJetOn', params.jet ? 1 : 0).set('uJetBright', 1.0);
+      .set('uJetOn', params.jet ? 1 : 0).set('uJetBright', 1.0)
+      .set('uCorona', params.corona).set('uWind', params.wind).set('uBLR', params.blr)
+      .set('uBlrIn', blrIn).set('uBlrOut', blrOut).set('uFrame', frameIdx % 4096);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, bbTex); tr.set('uBB', 0);
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, profTex); tr.set('uProf', 1);
     gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_CUBE_MAP, skyTex); tr.set('uSky', 2);
@@ -1376,6 +1491,8 @@
   }
 
   buildPanel();
+  updateObjectUi();
+  if (params.object === 'ton618') { const d = $('#panel details[data-sec="sec.quasar"]'); if (d) d.open = true; }
   if (qs.get('ui') === '0') document.body.classList.add('hide-ui');
   if (qs.get('panel') === '0' || window.innerWidth < 1280) document.body.classList.add('panel-closed');
   if (qs.get('diagram') === '0' || window.innerWidth < 1400) document.body.classList.add('no-diagram');
@@ -1430,5 +1547,5 @@
     return out;
   }
   // Test/otomasyon için dışa açık durum
-  window.__bh = { params, cam, plunge, tour, startTour, stopTour, startPlunge, applyPreset, setMode, P, setScale, onParam, bench, hasTimer: !!tq, gpuQ, gpuPost, get scale() { return scale; }, get fps() { return fpsAvg; } };
+  window.__bh = { params, cam, plunge, tour, startTour, stopTour, startPlunge, applyPreset, setMode, setObject, P, setScale, onParam, bench, hasTimer: !!tq, gpuQ, gpuPost, get scale() { return scale; }, get fps() { return fpsAvg; } };
 })();

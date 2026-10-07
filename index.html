@@ -104,12 +104,14 @@
   body.eht #ehtLabel { display: block; }
 
   .trow { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
-  #infoBtn, #lang { pointer-events: auto; }
-  body.hide-ui #infoBtn, body.hide-ui #lang { pointer-events: none; }
-  #lang { display: flex; gap: 2px; padding: 2px; background: var(--glass); border: 1px solid var(--line); border-radius: 999px; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
-  #lang button { all: unset; cursor: pointer; padding: 4px 9px; border-radius: 999px; font-size: 10px; letter-spacing: .1em; color: var(--dim); }
-  #lang button:hover { color: var(--fg); }
-  #lang button.on { background: rgba(255, 255, 255, 0.12); color: #fff; }
+  #infoBtn, #lang, #object { pointer-events: auto; }
+  body.hide-ui #infoBtn, body.hide-ui #lang, body.hide-ui #object { pointer-events: none; }
+  #lang, #object { display: flex; gap: 2px; padding: 2px; background: var(--glass); border: 1px solid var(--line); border-radius: 999px; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+  #lang button, #object button { all: unset; cursor: pointer; padding: 4px 9px; border-radius: 999px; font-size: 10px; letter-spacing: .1em; color: var(--dim); white-space: nowrap; }
+  #lang button:hover, #object button:hover { color: var(--fg); }
+  #lang button.on, #object button.on { background: rgba(255, 255, 255, 0.12); color: #fff; }
+  #object button[data-object="ton618"].on { background: rgba(120, 170, 255, 0.28); }
+  body.quasar #title h1 { color: #e8f0ff; }
   #rec { position: fixed; left: 28px; top: 128px; z-index: 6; display: none; align-items: center; gap: 8px; cursor: pointer;
     padding: 5px 12px 5px 10px; border-radius: 999px; background: rgba(40, 8, 8, 0.7); border: 1px solid rgba(255, 90, 90, 0.4);
     font: 11px/1 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: .08em; color: #ffd6d6; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
@@ -155,6 +157,7 @@
   <p data-i18n="ui.subtitle"></p>
   <div class="trow">
     <button id="infoBtn" class="btn" data-i18n="ui.info"></button>
+    <div id="object" role="group" data-i18n-title="ui.object"><button data-object="kerr">KERR</button><button data-object="ton618">TON 618</button></div>
     <div id="lang" role="group" data-i18n-title="ui.language"><button data-lang="en">EN</button><button data-lang="tr">TR</button></div>
   </div>
 </div>
@@ -198,6 +201,8 @@
     <p data-i18n="info.disk.p"></p>
     <h4 data-i18n="info.fall.h"></h4>
     <p data-i18n="info.fall.p"></p>
+    <h4 data-i18n="info.ton.h"></h4>
+    <p data-i18n="info.ton.p"></p>
     <h4 data-i18n="info.valid.h"></h4>
     <p data-i18n="info.valid.p"></p>
     <div class="keys" data-i18n="info.keys"></div>

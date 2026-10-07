@@ -192,15 +192,14 @@
   }
 
   /*
-   * Novikov–Thorne / Page–Thorne ince disk akısı (Kerr, sıfır iç tork).
-   * F(r) ∝ −Ω'(r) / (r (E − ΩL)²) ∫_{r_isco}^{r} (E − ΩL) L'(r) dr
-   * Sıcaklık T ∝ F^{1/4}; en yüksek değere göre normalize edilmiş tablo döner.
-   * Tablo log-uzaylı: u = ln(r/r_isco) / ln(rMax/r_isco).
+   * Novikov–Thorne / Page–Thorne ince disk akısı (Kerr, sıfır iç tork), bir yüzden:
+   * F(r) = Ṁ/(4π r) · −Ω'(r) / (E − ΩL)² ∫_{r_isco}^{r} (E − ΩL) L'(r) dr
+   * Ṁ = 1 geometrik birimlerde; fiziksel akı F · Ṁ c⁶ / (G M)². Newton sınırı 3Ṁ/(8π r³)(1 − √(r_in/r)).
+   * Izgara log-uzaylı: r_i = r_isco · (rMax/r_isco)^(i/fine).
    */
-  function diskTemperatureProfile(a, rMax, N) {
+  function diskFlux(a, rMax, fine) {
     const rin = isco(a);
     const lnR = Math.log(rMax / rin);
-    const fine = 4096;
     const rs = new Float64Array(fine + 1);
     const integ = new Float64Array(fine + 1);
     const F = new Float64Array(fine + 1);
@@ -220,13 +219,24 @@
       rs[i] = r; integ[i] = acc;
       prevR = r; prevI = I;
     }
-    let fmax = 0;
     for (let i = 0; i <= fine; i++) {
       const r = rs[i];
       const e = EmOL(r);
-      F[i] = Math.max(0, -dOm(r) / (r * e * e) * integ[i]);
-      if (F[i] > fmax) fmax = F[i];
+      F[i] = Math.max(0, -dOm(r) / (4 * Math.PI * r * e * e) * integ[i]);
     }
+    return { rs, F, rin };
+  }
+
+  /*
+   * Sıcaklık T ∝ F^{1/4}; en yüksek değere göre normalize edilmiş tablo döner.
+   * Tablo log-uzaylı: u = ln(r/r_isco) / ln(rMax/r_isco).
+   * fPeak: tepe akısı (bir yüz, Ṁ = 1, geometrik birimler), fiziksel sıcaklık için.
+   */
+  function diskTemperatureProfile(a, rMax, N) {
+    const fine = 4096;
+    const { rs, F, rin } = diskFlux(a, rMax, fine);
+    let fmax = 0;
+    for (let i = 0; i <= fine; i++) if (F[i] > fmax) fmax = F[i];
     const out = new Float32Array(N);
     for (let j = 0; j < N; j++) {
       const u = j / (N - 1);
@@ -238,7 +248,30 @@
     }
     // En yüksek sıcaklığın yarıçapı
     let imax = 0; for (let i = 0; i <= fine; i++) if (F[i] > F[imax]) imax = i;
-    return { table: out, rin, rMax, rPeak: rs[imax] };
+    return { table: out, rin, rMax, rPeak: rs[imax], fPeak: fmax };
+  }
+
+  // Işınım verimi η = 1 − E_isco (sonsuzdaki gözlemciye ulaşan dinlenme kütlesi enerjisi oranı)
+  function efficiency(a) { return 1 - circular(isco(a), a).E; }
+
+  /*
+   * Kuasar diski fiziksel büyüklükleri (SI). Msun: kütle [M☉], edd: L/L_Edd.
+   * L = edd · L_Edd,  Ṁ = L / (η c²),  σ T_tepe⁴ = fPeak · Ṁ c⁶ / (G M)²
+   */
+  const GM_SUN = 1.32712440018e20;   // m³/s²
+  const C_SI = 2.99792458e8;         // m/s
+  const SIGMA_SB = 5.670374419e-8;   // W m⁻² K⁻⁴
+  const L_EDD_SUN = 1.25707e31;      // W / M☉ (4π G M m_p c / σ_T, hidrojen)
+  function quasarDisk(a, Msun, edd, fPeak) {
+    const GM = GM_SUN * Msun;
+    const Ledd = L_EDD_SUN * Msun;
+    const L = edd * Ledd;
+    const eta = efficiency(a);
+    const mdot = L / (eta * C_SI * C_SI);   // kg/s
+    if (fPeak === undefined) fPeak = diskTemperatureProfile(a, 64, 2).fPeak;
+    const c3 = C_SI * C_SI * C_SI;
+    const Tpeak = Math.pow(fPeak * mdot * c3 * c3 / (GM * GM) / SIGMA_SB, 0.25);
+    return { L, Ledd, eta, mdot, mdotSunYr: mdot * 3.15576e7 / (GM_SUN / 6.6743e-11), Tpeak };
   }
 
   /*
@@ -283,7 +316,7 @@
   const api = {
     kerrR, deriv, rk4, metric, invMetric, lower, dot4, raise, cameraTetrad, staticObserver,
     horizon, innerHorizon, isco, photonOrbit, criticalImpact, circular,
-    diskTemperatureProfile, blackbodyTable
+    diskFlux, diskTemperatureProfile, efficiency, quasarDisk, blackbodyTable
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.KerrPhysics = api;
