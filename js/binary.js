@@ -74,7 +74,11 @@
 
   // Işınan enerji kesri (Barausse–Morozova–Rezzolla 2012, hizalanmış dönme)
   function radiatedEnergy(m1, m2, chi1, chi2) {
-    const { nu, ah } = remnantParams(m1, m2, chi1, chi2);
+    const { nu } = remnantParams(m1, m2, chi1, chi2);
+    // BMR 2012'de ã = (χ₁ + χ₂q²)/(1+q)² (dönme formülündeki (1+q²) değil)
+    if (m2 > m1) { const tm = m1, tc = chi1; m1 = m2; m2 = tm; chi1 = chi2; chi2 = tc; }
+    const qq = m1 > 0 ? m2 / m1 : 0;
+    const ah = clamp((chi1 + chi2 * qq * qq) / ((1 + qq) * (1 + qq)), -0.9999, 0.9999);
     const Ei = iscoEnergy(ah);   // ISCO özgül enerjisi (dönme ã)
     return clamp((1 - Ei) * nu + 4 * nu * nu * (4 * P0 + 16 * P1 * ah * (ah + 1) + Ei - 1), 0, 0.5);
   }

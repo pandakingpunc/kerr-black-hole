@@ -15,6 +15,8 @@ check('af (q=0.5, chi=0)', B.finalSpin(2 / 3, 1 / 3, 0, 0), 0.62, 0.01);
 check('Erad (q=0.5, chi=0)', B.radiatedEnergy(2 / 3, 1 / 3, 0, 0), 0.038, 0.005);
 check('af (q=0.25, chi=0)', B.finalSpin(0.8, 0.2, 0, 0), 0.47, 0.01);
 check('Erad (q=0.25, chi=0)', B.radiatedEnergy(0.8, 0.2, 0, 0), 0.02, 0.005);
+// hizalı yüksek dönme: SR ~%9–11 (ã'nın (1+q)² ile normalize edilmesi gerekir)
+check('Erad (q=1, chi=0.9 hizalı)', B.radiatedEnergy(0.5, 0.5, 0.9, 0.9), 0.095, 0.015);
 {
   const s = B.system({ q: 1, chi1: 0, chi2: 0, a0: 20 });
   check('system remnant.af = finalSpin', s.remnant.af, B.finalSpin(0.5, 0.5, 0, 0), 1e-12);

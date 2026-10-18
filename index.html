@@ -97,7 +97,7 @@
   body:not(.merger) #gwBox, body.no-gw #gwBox { display: none; }
   body.merger #diagramBox { display: none; }
   body:not(.merger) #panel details[data-sec="sec.merger"] { display: none; }
-  body.merger #panel details[data-sec="sec.quasar"] { display: none; }
+  body.merger #panel details[data-sec="sec.quasar"], body.merger #panel details[data-sec="sec.bh"] { display: none; }
   body.merger #title h1 { color: #ffe4c8; }
   #object button[data-object="merger"].on { background: rgba(255, 150, 90, 0.28); }
   #object button:disabled { opacity: .35; pointer-events: none; }
@@ -194,7 +194,7 @@
 </div>
 
 <div id="gwBox" class="ui">
-  <h3><div data-i18n="gw.box"></div><span id="gwClose" data-i18n-title="diag.hide">×</span></h3>
+  <h3><div data-i18n="gw.title"></div><span id="gwClose" data-i18n-title="diag.hide">×</span></h3>
   <canvas id="gwChart"></canvas>
 </div>
 

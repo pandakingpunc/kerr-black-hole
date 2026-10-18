@@ -16,6 +16,7 @@ Dönen (Kerr) bir kara deliğin tarayıcıda, WebGL2 ile çalışan gerçek zama
 - **Kara deliğe düşüş.** Kamera olay ufkunu geçen gerçek bir zamansı jeodezik izler.
 - **EHT gözüyle:** 1,3 mm VLBI çözünürlüğünde M87* benzeri görüntü.
 - **TON 618 kuasar kipi.** Sol üstteki *Kerr / TON 618* düğmesiyle (ya da `Q`) bilinen en büyük kara deliklerden birine geçilir: 4,07×10¹⁰ M☉, L ≈ 4×10⁴⁰ W, z = 2,219. Disk sıcaklığı kütle, dönme ve parlaklıktan hesaplanır (Page-Thorne akısı, yaklaşık 25.000 K: disk mavi-beyazdır); kuasarın çevresi eklenir: sıcak X-ışını koronası, huni biçimli disk rüzgârı, jet ve ölçülen yarıçap-parlaklık ilişkisine göre birkaç yüz M ötedeki geniş çizgi bölgesi bulutları. Geri dönünce önceki ayarların geri gelir.
+- **Çarpışma kipi.** *Çarpışma* düğmesi (ya da `B`) sahneyi ikili bir sisteme çevirir: TON 618 deliği ve onun q katı kütleli bir Kerr deliği kütleçekim dalgası yayarak birbirine yaklaşır (Peters), birleşir ve halka sönümüyle durulur. Kalıntının dönmesi ve kütlesi sayısal görelilik uyarlamalarından (Rezzolla vd. 2008, Barausse vd. 2012), halka sönümü l = m = 2 kuasinormal kipinden (Berti vd. 2006) hesaplanır; canlı bir grafik h₊ cıvıltısını gösterir. Işık iki Kerr-Schild metriğinin durağan üst üste binmesinde izlenir: tek delik için kesin, ikisi için yaklaşıktır. Dairesel disk yaklaşma boyunca boşluğunu korur (disk kopması) ve birleşmeden sonra dolar; akış kolları ve küçük diskler her deliği besler.
 - **Göreli jet**, Interstellar tarzı kalın disk, ışık yolları diyagramı, açıklamalı otomatik tur ve 9 hazır sahne.
 - **Video kaydı ve ekran görüntüsü:** `R` ile MP4 (veya WebM) kaydı, `S` ile PNG.
 - **İngilizce ve Türkçe arayüz.** Varsayılan İngilizcedir; sol üstteki EN/TR düğmesiyle değişir ve seçim hatırlanır (`?lang=tr` ile de açılabilir).
@@ -32,7 +33,7 @@ python -m http.server 8000
 
 **WebGL2** ve `EXT_color_buffer_float` desteği gerekir (güncel Chrome, Edge, Firefox veya Safari). Çözünürlük, yaklaşık 60 fps için otomatik ayarlanır.
 
-TON 618 kipi doğrudan `?object=ton618` (ya da `?preset=ton618`) ile açılabilir. Kısayollar, URL parametreleri, doğrulama sonuçları ve proje yapısı için [English README](README.md) bölümlerine bakın.
+TON 618 kipi doğrudan `?object=ton618` (ya da `?preset=ton618`), çarpışma kipi `?object=merger` (ya da `?preset=carpisma`) ile açılabilir. Kısayollar, URL parametreleri, doğrulama sonuçları ve proje yapısı için [English README](README.md) bölümlerine bakın.
 
 ## Alıntı
 

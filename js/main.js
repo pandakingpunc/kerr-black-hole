@@ -95,7 +95,7 @@
     } },
     merger: { set: {
       mass: 'ton618', spin: 0.9, physT: false, edd: 0.078, corona: 0, wind: 0, blr: 0, jet: false,
-      disk: true, rout: 70, density: 1.0, turb: 1, haze: 0, bright: 1, beaming: 1, bolo: true, interstellar: false,
+      disk: true, temp: 4500, rout: 70, density: 1.0, turb: 1, haze: 0, bright: 1, beaming: 1, bolo: true, interstellar: false,
       grid: false, eht: false, skyBright: 0.5, starBright: 0.5, exposure: 1.4, bloom: 1.3,
       incl: 72, dist: 75, fov: 50, roll: 0,
       bq: 0.5, bchi1: 0.9, bchi2: 0.7, bsep: 14, bspeed: 1,
@@ -1170,7 +1170,8 @@
 
   function initGwChart() {
     if (!window.GWChart || gwChart || !gwEl) return;
-    gwChart = window.GWChart.create(gwEl, { label: T });
+    // başlık kutunun h3'ünde; grafik kendi başlığını çizmesin
+    gwChart = window.GWChart.create(gwEl, { label: (k) => (k === 'gw.title' ? '' : T(k)) });
   }
 
   // bq/bchi1/bchi2/bsep değişince ya da kipe girince sistem yeniden kurulur, saat 0
@@ -1493,9 +1494,13 @@
       vRh = st.merged
         ? BP.horizonRadius(bin.sys.remnant.mf, bin.sys.remnant.af)
         : Math.max(holes[0].rh, holes[1] ? holes[1].rh : 0);
+      // Disk kopması: KD ile yaklaşma viskoz akıştan hızlı olunca disk ikiliyi izleyemez, boşluk ~2·a₀'da kalır
+      // (Milosavljević & Phinney 2005). Birleşmeden sonra boşluk kalıntının ISCO'suna doğru dolar
+      // (gerçek viskoz süre çok daha uzun; hızlandırıldı).
+      const cav = Math.max(2.0 * bin.sys.a0, 3);
       vRin = st.merged
-        ? P.isco(bin.sys.remnant.af) * bin.sys.remnant.mf        // kalıntının ISCO'su (M biriminde)
-        : Math.max(2.0 * st.sep, 3);                            // dairesel diskin iç kenarı ~2·ayrıklık
+        ? lerp(P.isco(bin.sys.remnant.af) * bin.sys.remnant.mf, cav, Math.exp(-(bin.t - bin.sys.tMerge) / 100))
+        : cav;
     }
     // dikey ekranlarda yatay görüş çok daralmasın
     const aspect = cw / ch;

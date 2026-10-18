@@ -16,6 +16,7 @@ A real-time general-relativistic ray tracer for a rotating (Kerr) black hole, ru
 - **Fall into the black hole.** The camera follows a real timelike geodesic across the event horizon, with proper time and speed readouts. A rotating hole stops at the inner (Cauchy) horizon, a non-rotating one at the singularity.
 - **EHT view.** Renders the same physics at 1.3 mm VLBI resolution, comparable to the 2019 M87* image.
 - **TON 618 quasar mode.** Switch with the *Kerr / TON 618* toggle at the top left (or `Q`) to one of the most massive black holes known: 4.07×10¹⁰ M☉, L ≈ 4×10⁴⁰ W, z = 2.219. The disk temperature follows from mass, spin and luminosity (Page-Thorne flux, about 25,000 K, so the disk is blue-white), and the quasar's surroundings are added: a hot X-ray corona, a funnel-shaped disk wind, a jet, and the broad-line region clouds a few hundred M out, sized by the measured radius-luminosity relation. Switching back restores your previous settings.
+- **Collision mode.** The *Collision* toggle (or `B`) turns the scene into a binary: the TON 618 hole and a Kerr hole q times its mass (q is a slider; a Sgr A*-mass hole would be q ≈ 10⁻⁴, too small to see) spiral in by gravitational-wave emission (Peters), merge and ring down. The remnant's spin and mass come from numerical-relativity fits (Rezzolla et al. 2008, Barausse et al. 2012), the ringdown from the l = m = 2 quasinormal mode (Berti et al. 2006), and a live chart shows the strain h₊ chirp. Light is traced through a static superposition of two Kerr-Schild metrics: exact for one hole, approximate for two (hole motion during the light travel time is ignored). The circumbinary disk keeps its cavity while the holes inspiral (disk decoupling) and refills after the merger; accretion streams and small disks feed each hole.
 - **Relativistic jet**, an *Interstellar*-style thick disk, an equatorial light-path diagram, an auto tour with captions, and 9 preset scenes.
 - **Video recording and screenshots.** Record the render to MP4 (or WebM) with `R`, or save a PNG with `S`.
 - **English and Turkish interface.** English is the default; switch with the EN/TR toggle (the choice is remembered).
@@ -47,6 +48,7 @@ Requirements: a browser with **WebGL2** and the `EXT_color_buffer_float` extensi
 | `C` / `O` | Cinematic / free camera |
 | `D` or `Esc` | Fall into the black hole / exit the fall |
 | `Q` | Switch between the Kerr black hole and the TON 618 quasar |
+| `B` | Switch to / from collision mode |
 | `1`–`9` | Preset scenes |
 | `T` | Auto tour |
 | `Space` | Pause disk motion |
@@ -62,7 +64,8 @@ Video recording captures only the rendered image, not the interface, and stops b
 
 Settings can be preloaded from the address bar, for example `?preset=gargantua`, `?spin=0.99&incl=87&dist=22`, `?object=ton618`, `?lang=tr` or `?ui=0&tour=1`.
 
-- `object`: `kerr` (default) or `ton618`
+- `object`: `kerr` (default), `ton618` or `merger`
+- collision settings: `bq` (mass ratio), `bchi1`, `bchi2` (spins), `bsep` (initial separation in M), `bspeed`
 - `preset`: `fiziksel`, `gargantua`, `kutup`, `kenar`, `yakin`, `lens`, `m87`, `jet`, `ton618`
 - any panel setting by name: `spin`, `incl`, `dist`, `fov`, `roll`, `temp`, `rout`, `density`, `exposure`, `quality` (`dusuk`, `orta`, `yuksek`, `ultra`), `mass` (`sgra`, `m87`, `garg`, `stellar`, `ton618`), `edd`, `physT`, `corona`, `wind`, `blr`, …
 - `lang` (`en` or `tr`), `mode` (`cinematic` or `orbit`), `tour=1`, `ui=0`, `panel=0`, `diagram=0`
@@ -84,6 +87,8 @@ The Schwarzschild shadow angle and the Kerr equatorial critical impact parameter
 ```
 index.html        page, styles and static text
 js/i18n.js        English / Turkish strings
+js/binary.js      binary inspiral, merger remnant, ringdown and GW strain
+js/gwchart.js     gravitational-wave strain chart
 js/physics.js     Kerr-Schild metric, geodesics, ISCO, disk flux and temperature, quasar disk, blackbody table
 js/shaders.js     GLSL: sky generator, ray tracer (disk, jet, quasar corona, wind, BLR), TAA, bloom, composite
 js/main.js        WebGL2 pipeline, camera, free fall, UI, recording
