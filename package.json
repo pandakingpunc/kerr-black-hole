@@ -6,6 +6,6 @@
   "license": "MIT",
   "scripts": {
     "start": "python -m http.server 8000",
-    "test": "node dev/test_physics.js"
+    "test": "node dev/test_physics.js && node dev/test_binary.js"
   }
 }
