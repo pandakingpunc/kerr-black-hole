@@ -220,6 +220,13 @@ uniform float uCorona, uWind, uBLR;
 uniform float uBlrIn, uBlrOut;
 uniform float uFrame;
 
+/* İkili kara delik kipi (uBinary = 1). main.js ayarlar; 0 iken özgün yol birebir çalışır. */
+uniform float uBinary;      // 0 = tek delik, 1 = ikili
+uniform vec4 uBH1, uBH2;    // xyz = merkez, w = kütle (toplam kütle birimi); uBH2.w = 0 → kalıntı tek delik
+uniform float uSpin1, uSpin2;  // boyutsuz dönmeler, +z hizalı
+uniform float uBinPhase;    // yörünge fazı φ (akış kollarını oynatır)
+uniform float uBinSep;      // güncel ayrım a (birleşmeden sonra 0)
+
 ${NOISE}
 
 const float PI = 3.14159265358979;
@@ -405,6 +412,173 @@ vec3 hazeSegment(vec3 x0, vec3 x1, vec3 q, float sCam) {
   float T = uTmax * diskProfile(max(rm, uRin)) * 0.92;
   float Tobs = T * pow(max(g, 1e-3), uBeaming);
   return emission(Tobs) * uDiskBright * uHaze * env * I / rm;
+}
+
+/* --- İkili kara delik kipi (uBinary = 1) ------------------------------------
+   Uzay-zaman: iki Kerr-Schild metriğinin üst üste toplamı,
+   g^{μν} = η^{μν} − f₁l₁ᵘl₁ᵛ − f₂l₂ᵘl₂ᵛ. Her delik kendi merkezine ve kütlesine
+   göre ölçeklenir: u = (x − cᵢ)/mᵢ noktasında a = χᵢ ile birim-kütle türevi;
+   f ve k boyutsuz/ölçek-değişmez, gradyanlar 1/mᵢ çarpanı alır. */
+
+/* Bir deliğin Hamilton katkısı. rAbs: ışının deliğe göre Kerr-Schild yarıçapı (mutlak birim). */
+void holeTerm(vec3 x, vec3 q, vec3 cPos, float mass, float chi,
+              out vec3 dxc, out vec3 dqc, out float dtc, out float rAbs) {
+  vec3 u = (x - cPos) / mass;
+  float a = chi, a2 = a * a;
+  float z2 = u.z * u.z;
+  float w = dot(u, u) - a2;
+  float r2 = 0.5 * (w + sqrt(w * w + 4.0 * a2 * z2));
+  float r = sqrt(max(r2, 1e-20));
+  float ir = 1.0 / r;
+  float r3 = r2 * r;
+  float iDn = 1.0 / (r2 * r2 + a2 * z2);
+  float A = r2 + a2;
+  float iA = 1.0 / A;
+  vec3 gr = vec3(u.x * r3, u.y * r3, u.z * r * A) * iDn;
+  vec3 k = vec3((r * u.x + a * u.y) * iA, (r * u.y - a * u.x) * iA, u.z * ir);
+  float f = 2.0 * r3 * iDn;
+  float m3 = 3.0 * a2 * z2 - r2 * r2;
+  vec3 gf = (2.0 * r2 * iDn * iDn) * (m3 * gr - vec3(0.0, 0.0, 2.0 * a2 * r * u.z));
+  float S = dot(k, q) - 1.0;
+  float c = (u.x * q.x + u.y * q.y - 2.0 * r * (k.x * q.x + k.y * q.y)) * iA - u.z * q.z * ir * ir;
+  vec3 gk = c * gr + vec3((r * q.x - a * q.y) * iA, (a * q.x + r * q.y) * iA, q.z * ir);
+  float fS = f * S;
+  float im = 1.0 / mass;
+  dxc = -fS * k;
+  dqc = (0.5 * S * S * gf + fS * gk) * im;
+  dtc = fS;
+  rAbs = mass * r;
+}
+
+/* dx = q − ΣfᵢSᵢkᵢ,  dq = Σ(½Sᵢ²∇fᵢ + fᵢSᵢ∇(kᵢ·q))/mᵢ,  dt = −1 + ΣfᵢSᵢ.
+   rMin: iki deliğe göre yarıçaplar (r₁·m₁, r₂·m₂; delik 2 yoksa y = 1e30). */
+void derivBin(vec3 x, vec3 q, out vec3 dx, out vec3 dq, out float dt, out vec2 rMin) {
+  vec3 dx1, dq1, dx2, dq2;
+  float dt1, dt2, r1, r2;
+  holeTerm(x, q, uBH1.xyz, uBH1.w, uSpin1, dx1, dq1, dt1, r1);
+  dx = q + dx1;
+  dq = dq1;
+  dt = -1.0 + dt1;
+  rMin = vec2(r1, 1e30);
+  if (uBH2.w > 0.0) {
+    holeTerm(x, q, uBH2.xyz, uBH2.w, uSpin2, dx2, dq2, dt2, r2);
+    dx += dx2;
+    dq += dq2;
+    dt += dt2;
+    rMin.y = r2;
+  }
+}
+
+void rk4Bin(inout vec3 x, inout vec3 q, inout float t, vec3 k1x, vec3 k1q, float k1t, float h) {
+  vec3 k2x, k2q, k3x, k3q, k4x, k4q; float k2t, k3t, k4t; vec2 rr;
+  derivBin(x + 0.5 * h * k1x, q + 0.5 * h * k1q, k2x, k2q, k2t, rr);
+  derivBin(x + 0.5 * h * k2x, q + 0.5 * h * k2q, k3x, k3q, k3t, rr);
+  derivBin(x + h * k3x, q + h * k3q, k4x, k4q, k4t, rr);
+  x += h / 6.0 * (k1x + 2.0 * (k2x + k3x) + k4x);
+  q += h / 6.0 * (k1q + 2.0 * (k2q + k3q) + k4q);
+  t += h / 6.0 * (k1t + 2.0 * (k2t + k3t) + k4t);
+}
+
+/* İkili disk kırmızıya kayması: toplam kütle çevresinde Kepler Ω = √(1/r³);
+   birleşmeden sonra kalıntı için Kerr-benzeri prograd Ω = √(m/r³)/(1+χ√(m³/r³)).
+   Kütleçekim kısmı Schwarzschild benzeri u^t = 1/√(1 − 3M/r) (kırpılmış). */
+float redshiftBin(vec3 xh, vec3 qh, float r, float sCam, out float Om) {
+  float M = uBH1.w + uBH2.w;
+  float r3 = r * r * r;
+  Om = inversesqrt(r3 / max(M, 1e-6));
+  if (uBH2.w <= 0.0) Om = Om / (1.0 + uSpin1 * sqrt(M * M * M / r3));
+  float ut = inversesqrt(max(1.0 - 3.0 * M / r, 0.05));
+  float L = -(xh.x * qh.y - xh.y * qh.x);
+  return sCam / (ut * (1.0 - Om * L));
+}
+
+/* Sarmal yutak akışı: disk iç kenarından deliğe uzanan, yörüngeyle (uBinPhase)
+   birlikte dönen yoğunluk kolu. Kol dışa doğru dönüş yönünün gerisine kıvrılır. */
+float binStream(vec2 hc, float r, float ang) {
+  float dh = length(hc);
+  if (dh < 1e-4 || uBinSep <= 0.0) return 0.0;
+  float sdh = sqrt(dh);
+  float th = atan(hc.y, hc.x) - 1.6 * (sqrt(max(r, dh)) - sdh) / sdh;
+  float dth = atan(sin(ang - th), cos(ang - th));
+  float w = 0.22 * sqrt(r * dh) + 0.05 * dh;
+  float s2 = dth * r / w;
+  float arm = exp(-0.5 * s2 * s2);
+  float env = smoothstep(0.55 * dh, 1.05 * dh, r) * (1.0 - smoothstep(uRin * 0.75, uRin * 1.08, r));
+  float trav = 0.85 + 0.15 * sin(4.0 * log(max(r, dh) / dh) - 3.0 * uBinPhase);
+  return arm * env * trav;
+}
+
+/* Mini disk: deliğin çevresinde 3–6 mᵢ sıcak halka, kendi Ω'su ile */
+vec4 miniDisk(vec2 hc, float mi, float chi, vec3 xh, vec3 qh, float ci, float sCam, float te) {
+  vec2 rel = xh.xy - hc;
+  float rho = length(rel);
+  float ring = smoothstep(2.9 * mi, 3.4 * mi, rho) * (1.0 - smoothstep(5.0 * mi, 6.5 * mi, rho));
+  if (ring <= 0.001) return vec4(0.0);
+  float rho3 = rho * rho * rho;
+  float sq = inversesqrt(rho3 / mi);
+  float Om = sq / (1.0 + chi * sq * mi);
+  float ut = inversesqrt(max(1.0 - 3.0 * mi / rho, 0.05));
+  float L = -(rel.x * qh.y - rel.y * qh.x);
+  float g = sCam / (ut * (1.0 - Om * L));
+  float pat = diskDensity(rho / mi, atan(rel.y, rel.x), te, Om);
+  float tau = uDiskDensity * ring * (0.3 + 0.7 * pat) * 0.6 / ci;
+  float alpha = 1.0 - exp(-tau);
+  float T = uTmax * 1.15 * pow(3.3 * mi / rho, 0.75) * (0.85 + 0.15 * clamp(pat, 0.0, 2.0));
+  float Tobs = T * pow(max(g, 1e-3), uBeaming);
+  return vec4(emission(Tobs) * uDiskBright * 0.8 * alpha, alpha);
+}
+
+/* İkili (circumbinary) disk: z = 0 düzlemi, uRin–uRout. T(r) Newton NT benzeri,
+   tepe tam uTmax'a normalize (rpk = 49/36·uRin). İlham sırasında akış kolları + mini diskler. */
+vec4 shadeDiskBin(vec3 xh, vec3 qh, float te, float cosi, float sCam) {
+  float aRem = uBH2.w > 0.0 ? 0.0 : uSpin1 * uBH1.w;
+  float r = sqrt(max(dot(xh.xy, xh.xy) - aRem * aRem, 1e-6));
+  float phi = atan(xh.y, xh.x);
+  float ci = max(cosi, 0.045);
+  vec3 rgb = vec3(0.0);
+  float aa = 0.0;
+  if (r > uRin * 0.995 && r < uRout) {
+    float Om;
+    float g = redshiftBin(xh, qh, r, sCam, Om);
+    float pat = diskDensity(r, phi, te, Om);
+    float env = smoothstep(uRin * 0.995, uRin * 1.05, r) * (1.0 - smoothstep(uRout * 0.55, uRout, r));
+    float thick = mix(1.0, 2.2, uInterstellar);
+    float radial = inversesqrt(r / uRin);
+    float str = 0.0;
+    if (uBH2.w > 0.0) str = binStream(uBH1.xy, r, phi) + binStream(uBH2.xy, r, phi);
+    float tau = uDiskDensity * env * radial * (0.22 + 0.78 * pat) * (1.0 + 0.9 * str) * thick / ci;
+    float alpha = 1.0 - exp(-tau);
+    float rpk = (49.0 / 36.0) * uRin;
+    float T = uTmax * pow(rpk / r, 0.75) * pow(max(7.0 * (1.0 - sqrt(uRin / r)), 0.0), 0.25);
+    T = min(T, uTmax) * (0.8 + 0.22 * clamp(pat, 0.0, 2.5)) * (1.0 + 0.25 * str);
+    float Tobs = T * pow(max(g, 1e-3), uBeaming);
+    rgb = emission(Tobs) * uDiskBright * alpha;
+    aa = alpha;
+  }
+  if (uBH2.w > 0.0) {
+    // akış köprüleri: disk iç kenarı ile delikler arası (sönük)
+    if (r < uRin * 1.08) {
+      float str = binStream(uBH1.xy, r, phi) + binStream(uBH2.xy, r, phi);
+      if (str > 0.003) {
+        float Om;
+        float g = redshiftBin(xh, qh, max(r, 0.6 * uRin), sCam, Om);
+        float tauS = uDiskDensity * str * 0.4 / ci;
+        float aS = 1.0 - exp(-tauS);
+        float TS = uTmax * (1.05 - 0.3 * clamp(r / uRin, 0.0, 1.0));
+        float TobsS = TS * pow(max(g, 1e-3), uBeaming);
+        vec3 emS = emission(TobsS) * uDiskBright * 0.7;
+        rgb = emS * aS + (1.0 - aS) * rgb;
+        aa = aS + (1.0 - aS) * aa;
+      }
+    }
+    vec4 mm = miniDisk(uBH1.xy, uBH1.w, uSpin1, xh, qh, ci, sCam, te);
+    rgb = mm.rgb + (1.0 - mm.a) * rgb;
+    aa = mm.a + (1.0 - mm.a) * aa;
+    mm = miniDisk(uBH2.xy, uBH2.w, uSpin2, xh, qh, ci, sCam, te);
+    rgb = mm.rgb + (1.0 - mm.a) * rgb;
+    aa = mm.a + (1.0 - mm.a) * aa;
+  }
+  return vec4(rgb, aa);
 }
 
 /* Göreli jet (isteğe bağlı): dönme ekseni boyunca senkrotron benzeri ışıma.
@@ -698,6 +872,63 @@ void main() {
   if (valid) {
     sCam = 1.0 / qm.x;
     q = qm.yzw * sCam;
+    if (uBinary > 0.5) {
+      /* === İkili yol: iki deliğin üst üste metriğinde jeodezik === */
+      float t = 0.0;
+      vec3 dq; float dtl; vec2 rr;
+      derivBin(x, q, dx, dq, dtl, rr);
+      float m1 = uBH1.w, m2 = uBH2.w;
+      float rhn1 = 1.0 + sqrt(max(1.0 - uSpin1 * uSpin1, 0.0));
+      float rhn2 = 1.0 + sqrt(max(1.0 - uSpin2 * uSpin2, 0.0));
+      float rh1 = m1 * rhn1, rh2 = m2 * rhn2;
+      float rinLo = uRin * 0.9, routHi = uRout * 1.05;
+      float rinGate = m2 > 0.0 ? 0.3 * m2 : rinLo;   // ilhamda mini diskler de kapsanır
+      float aRem = m2 > 0.0 ? 0.0 : uSpin1 * m1;
+      for (int i = 0; i < 2000; i++) {
+        if (i >= uMaxSteps) break;
+        // adım: en yakın deliğe uzaklık, deliğin kendi kütle biriminde (tek-delik formülü)
+        float rn1 = rr.x / m1;
+        float ds = m1 * (uStepK * max(rn1, 0.8) * clamp(rn1 * 0.14, 1.0, 3.5));
+        ds = min(ds, m1 * (max(0.6 * (rn1 - rhn1), 0.035) + 0.02 * rn1));
+        if (m2 > 0.0) {
+          float rn2 = rr.y / m2;
+          float ds2 = m2 * (uStepK * max(rn2, 0.8) * clamp(rn2 * 0.14, 1.0, 3.5));
+          ds2 = min(ds2, m2 * (max(0.6 * (rn2 - rhn2), 0.035) + 0.02 * rn2));
+          ds = min(ds, ds2);
+        }
+        float h = ds * inversesqrt(max(dot(dx, dx), 1e-12));
+        h = min(h, 0.1 * length(q) * inversesqrt(max(dot(dq, dq), 1e-20)));
+        vec3 xn = x, qn = q; float tn = t;
+        rk4Bin(xn, qn, tn, dx, dq, dtl, h);
+
+        if (uDiskOn > 0.5 && x.z * xn.z < 0.0) {
+          float fr = x.z / (x.z - xn.z);
+          vec2 xl = mix(x.xy, xn.xy, fr);
+          float rl = sqrt(max(dot(xl, xl) - aRem * aRem, 0.0));
+          if (rl > rinGate && rl < routHi) {
+            // kesişimi hassaslaştır: kesirli RK4 adımı + bir Newton düzeltmesi
+            vec3 xh = x, qh = q; float th = t;
+            rk4Bin(xh, qh, th, dx, dq, dtl, h * fr);
+            vec3 vh, dqh; float dth; vec2 rhh;
+            derivBin(xh, qh, vh, dqh, dth, rhh);
+            float corr = clamp(-xh.z / vh.z, -0.5 * h, 0.5 * h);
+            xh += vh * corr; qh += dqh * corr; th += dth * corr;
+            float cosi = abs(vh.z) * inversesqrt(dot(vh, vh));
+            vec4 e = shadeDiskBin(xh, qh, uTime + th, cosi, sCam);
+            col += (1.0 - Acc) * e.rgb;
+            Acc += (1.0 - Acc) * e.a;
+          }
+        }
+        x = xn; q = qn; t = tn;
+        if (Acc > 0.995) break;
+        derivBin(x, q, dx, dq, dtl, rr);
+        if (rr.x < rh1 * 1.01 + 0.005 * m1 || (m2 > 0.0 && rr.y < rh2 * 1.01 + 0.005 * m2)) break;
+        if (dot(q, q) > 3600.0) break;
+        if (length(x) > uResc && dot(x, dx) > 0.0) { escaped = true; tEsc = t; break; }
+        if (!(rr.x == rr.x) || !(rr.y == rr.y)) break;
+      }
+    } else {
+    /* === Özgün tek-delik yolu (değiştirilmedi) === */
     float t = 0.0;
     vec3 dq; float dtl, r;
     deriv(x, q, dx, dq, dtl, r);
@@ -752,6 +983,7 @@ void main() {
       if (uInside == 1 && (dot(q, q) > 640000.0 * q0 * q0 || r < 0.05)) break;
       if (r > uResc && dot(x, dx) > 0.0) { escaped = true; tEsc = t; break; }
       if (!(r == r)) break;
+    }
     }
   }
   vec3 dir = normalize(dx);
