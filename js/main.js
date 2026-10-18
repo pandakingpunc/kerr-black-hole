@@ -63,6 +63,12 @@
     corona: 0,
     wind: 0,
     blr: 0,
+    // çarpışma kipi (TON 618 + Kerr ikilisi)
+    bq: 0.5,        // kütle oranı m2/m1 (Kerr / TON 618)
+    bchi1: 0.9,     // TON 618 dönmesi
+    bchi2: 0.7,     // Kerr dönmesi
+    bsep: 14,       // başlangıç ayrıklığı [M]
+    bspeed: 1.0,    // oynatma hızı
   };
   const DEFAULTS = { ...params };
   const QUALITY = {
@@ -87,9 +93,16 @@
       grid: false, eht: false, skyBright: 0.5, starBright: 0.5, exposure: 1.3, bloom: 1.4,
       incl: 68, dist: 42, fov: 56, roll: 0,
     } },
+    merger: { set: {
+      mass: 'ton618', spin: 0.9, physT: false, edd: 0.078, corona: 0, wind: 0, blr: 0, jet: false,
+      disk: true, rout: 70, density: 1.0, turb: 1, haze: 0, bright: 1, beaming: 1, bolo: true, interstellar: false,
+      grid: false, eht: false, skyBright: 0.5, starBright: 0.5, exposure: 1.4, bloom: 1.3,
+      incl: 72, dist: 75, fov: 50, roll: 0,
+      bq: 0.5, bchi1: 0.9, bchi2: 0.7, bsep: 14, bspeed: 1,
+    } },
   };
   // geçişte saklanıp geri yüklenen ayarlar (fiziksel sıcaklık temp'i de değiştirir)
-  const OBJ_KEYS = [...Object.keys(OBJECTS.ton618.set), 'temp'];
+  const OBJ_KEYS = [...new Set([...Object.keys(OBJECTS.ton618.set), ...Object.keys(OBJECTS.merger.set), 'temp'])];
   const PRESETS = {
     fiziksel: { obj: 'kerr', set: { roll: 0, spin: 0.9, incl: 82, dist: 28, fov: 50, temp: 4500, beaming: 1, bolo: true, interstellar: false, density: 1.35, haze: 0.35, rout: 22, disk: true, grid: false, eht: false, jet: false, exposure: 1.4 } },
     gargantua: { obj: 'kerr', set: { roll: 0, spin: 0.99, incl: 87, dist: 22, fov: 46, temp: 4200, beaming: 0, bolo: true, interstellar: true, density: 1.8, haze: 0.6, rout: 18, disk: true, grid: false, eht: false, jet: false, exposure: 1.2 } },
@@ -100,12 +113,15 @@
     m87: { obj: 'kerr', set: { spin: 0.9, incl: 17, dist: 70, fov: 22, roll: 90, rout: 10, eht: true, disk: true, grid: false, beaming: 1, bolo: true, interstellar: false, temp: 6000, jet: false } },
     jet: { obj: 'kerr', set: { roll: 0, jet: true, incl: 64, dist: 48, fov: 56, disk: true, grid: false, eht: false } },
     ton618: { obj: 'ton618', set: { roll: 0, incl: 68, dist: 42, fov: 56, disk: true, grid: false, eht: false } },
+    carpisma: { obj: 'merger', set: { roll: 0, incl: 72, dist: 75, fov: 50, disk: true, grid: false, eht: false, bsep: 10 } },
   };
 
   // URL ile başlangıç ayarları (test ve paylaşım için): nesne → hazır sahne → tek tek ayarlar
   const qPreset = PRESETS[qs.get('preset')];
-  params.object = (qs.get('object') || (qPreset && qPreset.obj)) === 'ton618' ? 'ton618' : 'kerr';
-  if (params.object === 'ton618') Object.assign(params, OBJECTS.ton618.set);
+  const qObj = qs.get('object') || (qPreset && qPreset.obj) || 'kerr';
+  params.object = OBJECTS[qObj] ? qObj : 'kerr';
+  if (params.object === 'merger' && !window.BinaryPhysics) params.object = 'kerr';   // binary.js yoksa güvenli düş
+  if (params.object !== 'kerr') Object.assign(params, OBJECTS[params.object].set);
   if (qPreset) Object.assign(params, qPreset.set);
   for (const k of Object.keys(params)) {
     if (!qs.has(k) || k === 'object') continue;
@@ -373,7 +389,10 @@
   function setMode(m) {
     if (m === 'tour') { if (tour.active) stopTour(); else startTour(); return; }
     stopTour();
-    if (m === 'plunge') { startPlunge(); return; }
+    if (m === 'plunge') {
+      if (params.object === 'merger') { toast(T('merger.noPlunge.t'), T('merger.noPlunge.s')); return; }
+      startPlunge(); return;
+    }
     if (plunge.active) endPlunge(true);
     if (m === 'cinematic' && cam.mode !== 'cinematic') {
       cam.cineFrom = { az: cam.az, incl: cam.incl, dist: cam.dist };
@@ -497,7 +516,8 @@
     cam.yaw += (cam.tYaw - cam.yaw) * k;
     cam.pitch += (cam.tPitch - cam.pitch) * k;
 
-    const a = params.spin;
+    // çarpışma kipinde kamera tetradı merkezdeki M = 1 Schwarzschild delikle hesaplanır
+    const a = params.object === 'merger' ? 0 : params.spin;
     let X, u, inside = false;
     if (plunge.active) {
       const s = plunge.s;
@@ -583,7 +603,10 @@
     params.dist = cam.tDist;
     syncControl('dist');
   }
-  function minDist() { return 2.6 + params.spin * 0.4 + 0.6; }
+  function minDist() {
+    if (params.object === 'merger') return 1.5 * params.bsep + 5;   // kamera ikilinin dışında kalsın
+    return 2.6 + params.spin * 0.4 + 0.6;
+  }
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
     stopTour();
@@ -596,9 +619,14 @@
     if (k === 't') { setMode('tour'); return; }
     if (!['h', 'f', 'i', '?', 'p', 's', 'r'].includes(k)) stopTour();
     if (k === 'q') { setObject(params.object === 'ton618' ? 'kerr' : 'ton618'); return; }
+    if (k === 'b') { setObject(params.object === 'merger' ? prevSolo : 'merger'); return; }
     if (k === 'h') document.body.classList.toggle('hide-ui');
     else if (k === 'f') toggleFullscreen();
-    else if (k === ' ') { e.preventDefault(); params.paused = !params.paused; syncControl('paused'); }
+    else if (k === ' ') {
+      e.preventDefault();
+      if (binOn()) setBinPlaying(!bin.playing);
+      else { params.paused = !params.paused; syncControl('paused'); }
+    }
     else if (k === 's') shotRequested = true;
     else if (k === 'r') toggleRecording();
     else if (k === 'c') setMode('cinematic');
@@ -658,6 +686,16 @@
       { t: 'range', k: 'wind', label: 'p.wind', min: 0, max: 3, step: 0.01, f: offOr },
       { t: 'range', k: 'blr', label: 'p.blr', min: 0, max: 3, step: 0.01, f: offOr },
       { t: 'note', text: 'n.quasar' },
+    ] },
+    { title: 'sec.merger', open: false, items: [
+      { t: 'range', k: 'bq', label: 'p.bq', min: 0.1, max: 1, step: 0.01, f: (v) => fmt(v, 2) },
+      { t: 'range', k: 'bchi1', label: 'p.bchi1', min: 0, max: 0.99, step: 0.001, f: (v) => fmt(v, 3) },
+      { t: 'range', k: 'bchi2', label: 'p.bchi2', min: 0, max: 0.99, step: 0.001, f: (v) => fmt(v, 3) },
+      { t: 'range', k: 'bsep', label: 'p.bsep', min: 8, max: 30, step: 0.1, f: (v) => fmt(v, 1) + ' M' },
+      { t: 'range', k: 'bspeed', label: 'p.bspeed', min: 0.1, max: 5, step: 0.05, log: true, f: (v) => fmt(v, 2) + '×' },
+      { t: 'binbtns' },
+      { t: 'note', text: 'n.merger' },
+      { t: 'binvals' },
     ] },
     { title: 'sec.sky', open: false, items: [
       { t: 'toggle', k: 'stars', label: 'p.stars' },
@@ -757,6 +795,20 @@
         } else if (it.t === 'note') {
           const n = document.createElement('div'); n.className = 'note'; n.textContent = T(it.text);
           det.appendChild(n);
+        } else if (it.t === 'binbtns') {
+          // çarpışma kipi: Oynat/Duraklat + Yeniden başlat
+          const g = document.createElement('div'); g.className = 'btns';
+          binPlayBtn = document.createElement('button'); binPlayBtn.className = 'btn';
+          binPlayBtn.addEventListener('click', () => setBinPlaying(!bin.playing));
+          const rb = document.createElement('button'); rb.className = 'btn';
+          rb.textContent = T('bin.restart');
+          rb.addEventListener('click', resetBin);
+          g.append(binPlayBtn, rb);
+          det.appendChild(g);
+        } else if (it.t === 'binvals') {
+          // kalıntı kütle/dönme/ışınan enerji (salt okunur; sistem kurulurken güncellenir)
+          binValsEl = document.createElement('div'); binValsEl.className = 'note';
+          det.appendChild(binValsEl);
         } else if (it.t === 'presets') {
           const g = document.createElement('div'); g.className = 'btns';
           Object.keys(PRESETS).forEach((k, i) => {
@@ -776,13 +828,19 @@
           recBtn = mk('act.rec', toggleRecording, 'wide');
           mk('act.hideUi', () => document.body.classList.add('hide-ui'));
           mk('act.closePanel', () => document.body.classList.add('panel-closed'));
-          mk('act.diagram', () => { document.body.classList.toggle('no-diagram'); diagDirty = true; }, 'wide');
+          // çarpışma kipinde bu düğme ışık yolu diyagramı yerine GW grafiğini açar/kapatır
+          diagBtn = mk(params.object === 'merger' ? 'act.gw' : 'act.diagram', () => {
+            if (params.object === 'merger') document.body.classList.toggle('no-gw');
+            else { document.body.classList.toggle('no-diagram'); diagDirty = true; }
+          }, 'wide');
           det.appendChild(g);
         }
       }
       panel.appendChild(det);
     });
     updateRecUi();
+    updateBinUi();
+    updateBinVals();
   }
   function syncControl(k) { if (controls[k]) controls[k](); }
 
@@ -797,6 +855,11 @@
     if (k === 'quality') { if (!fixedScale) setScale(Math.min(scale, QUALITY[params.quality].maxScale)); }
     if (k === 'eht') document.body.classList.toggle('eht', params.eht);
     if (k === 'rout' && params.rout < 6) params.rout = 6;
+    if (k === 'bq' || k === 'bchi1' || k === 'bchi2' || k === 'bsep') {
+      rebuildBin();   // sistem yeniden kurulur, saat sıfırlanır
+      if (k === 'bsep') { cam.tDist = clamp(cam.tDist, minDist(), 400); params.dist = cam.tDist; syncControl('dist'); }
+    }
+    if (k === 'paused' && binOn()) { bin.playing = !params.paused; updateBinUi(); }
     histValid = false;
   }
 
@@ -816,44 +879,53 @@
   function applyPreset(key, quiet) {
     const pr = PRESETS[key];
     if (!pr) return;
+    if (pr.obj === 'merger' && !window.BinaryPhysics) return;
     if (!quiet) stopTour();
     if (plunge.active) endPlunge(true);
     if (pr.obj && pr.obj !== params.object) setObject(pr.obj, true);
     const prevSpin = params.spin;
+    const bPrev = [params.bq, params.bchi1, params.bchi2, params.bsep];
     Object.assign(params, pr.set);
     refreshParams(prevSpin);
+    if (binOn() && [params.bq, params.bchi1, params.bchi2, params.bsep].some((v, i) => v !== bPrev[i])) rebuildBin();
     if (!quiet) toast(T('preset.' + key), '');
   }
 
-  /* --- Nesne: genel Kerr kara deliği ↔ TON 618 kuasarı. Geri dönüşte önceki ayarlar geri gelir. --- */
-  let objSnapshot = null;
+  /* --- Nesne: Kerr ↔ TON 618 ↔ çarpışma. Geçişte her nesnenin ayarları saklanır, dönünce geri gelir. --- */
+  const objSnaps = {};
+  let prevSolo = params.object === 'merger' ? 'kerr' : params.object;   // B ile geri dönülecek nesne
   function setObject(o, quiet) {
     if (!OBJECTS[o] || o === params.object) return;
+    if (o === 'merger' && !window.BinaryPhysics) return;
     if (!quiet) stopTour();
     if (plunge.active) endPlunge(true);
     const prevSpin = params.spin;
-    if (o === 'ton618') {
-      objSnapshot = {};
-      for (const k of OBJ_KEYS) objSnapshot[k] = params[k];
-      Object.assign(params, OBJECTS.ton618.set);
-    } else {
-      const src = objSnapshot || DEFAULTS;
-      for (const k of OBJ_KEYS) params[k] = src[k];
-      objSnapshot = null;
-    }
+    objSnaps[params.object] = {};
+    for (const k of OBJ_KEYS) objSnaps[params.object][k] = params[k];
+    const src = objSnaps[o] || (o === 'kerr' ? DEFAULTS : OBJECTS[o].set);
+    for (const k of OBJ_KEYS) params[k] = (k in src) ? src[k] : DEFAULTS[k];
     params.object = o;
+    if (o !== 'merger') prevSolo = o;
     refreshParams(prevSpin);
+    if (o === 'merger') {
+      bin.playing = !params.paused;
+      rebuildBin();
+      const d = $('#panel details[data-sec="sec.merger"]');
+      if (d) d.open = true;
+    }
     updateObjectUi();
     if (o === 'ton618') { const d = $('#panel details[data-sec="sec.quasar"]'); if (d) d.open = true; }
     if (!quiet) toast(T('obj.' + o + '.t'), T('obj.' + o + '.s'), 3600);
   }
   function updateObjectUi() {
-    const q = params.object === 'ton618';
-    document.body.classList.toggle('quasar', q);
-    $('#title h1').dataset.i18n = q ? 'ui.title.ton618' : 'ui.title';
-    $('#title p').dataset.i18n = q ? 'ui.subtitle.ton618' : 'ui.subtitle';
+    const o = params.object;
+    document.body.classList.toggle('quasar', o === 'ton618');
+    document.body.classList.toggle('merger', o === 'merger');
+    $('#title h1').dataset.i18n = o === 'kerr' ? 'ui.title' : 'ui.title.' + o;
+    $('#title p').dataset.i18n = o === 'kerr' ? 'ui.subtitle' : 'ui.subtitle.' + o;
     I.apply($('#title'));
     document.querySelectorAll('#object button').forEach((b) => b.classList.toggle('on', b.dataset.object === params.object));
+    if (diagBtn) diagBtn.textContent = T(o === 'merger' ? 'act.gw' : 'act.diagram');
   }
   document.querySelectorAll('#object button').forEach((b) => b.addEventListener('click', () => setObject(b.dataset.object)));
 
@@ -867,6 +939,7 @@
     { k: 'm87', p: ['m87'], dur: 9 },
     { k: 'jet', p: ['fiziksel', 'jet'], dur: 11 },
     { k: 'ton618', p: ['ton618'], dur: 14 },
+    { k: 'carpisma', p: ['carpisma'], dur: 20 },
     { k: 'plunge', p: ['fiziksel'], plunge: true },
   ];
   const tour = { active: false, i: -1, t0: 0, fade: 1 };
@@ -987,6 +1060,7 @@
       '<i style="background:#ffa05a;height:1px"></i>ISCO ' + fmt(P.isco(a), 2) + ' M &nbsp; <i style="background:rgba(255,255,255,.4);height:1px"></i>' + T('diag.ergo');
   }
   function drawDiagram(time) {
+    if (params.object === 'merger') return;   // çarpışma kipinde ışık yolu diyagramı kapalı
     if (document.body.classList.contains('no-diagram') || document.body.classList.contains('hide-ui')) return;
     const key = [params.spin.toFixed(3), Math.round(cam.dist * 4), Math.round(cam.az * 40)].join('|');
     if (diagDirty || key !== diagKey) { computeDiagram(); diagKey = key; diagDirty = false; }
@@ -1070,6 +1144,150 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* Çarpışma kipi: ikili saat, GW grafiği, HUD                           */
+  /* ------------------------------------------------------------------ */
+  // js/binary.js veya js/gwchart.js yoksa kip sessizce devre dışı kalır
+  // (düğme kapalı, grafik gizli): bu dal tek başına çökmez.
+  const gwEl = $('#gwChart');
+  let gwChart = null, gwW = 0, gwH = 0;
+  let binPlayBtn = null, binValsEl = null, diagBtn = null;
+  const MSUN_TON = 4.07e10;                  // TON 618 [M☉]; Kerr deliği q katı
+  const MSUN_C2 = 1.787e47;                  // M☉·c² [J]
+  const BIN_RATE_K = 2 * Math.PI / 1.5;      // her yörünge ~1,5 sn duvar zamanı
+  const BIN_RATE_MIN = 5, BIN_RATE_MAX = 420;
+  const bin = { sys: null, t: 0, playing: true, rate: 1, merged: false, st: null };
+  const BP = window.BinaryPhysics;               // js/binary.js yoksa undefined (koçanlı kullanım)
+  const binOn = () => params.object === 'merger' && !!bin.sys;
+  const binMtot = () => MSUN_TON * (1 + params.bq);   // M_total [M☉]
+  const binSecM = () => binMtot() * ((BP && BP.SEC_PER_MSUN) || 4.925490947e-6);
+
+  function fmtHz(f) {
+    if (f >= 1) return fmt(f, 2) + ' Hz';
+    if (f >= 1e-3) return fmt(f * 1e3, 2) + ' mHz';
+    if (f >= 1e-6) return fmt(f * 1e6, 2) + ' µHz';
+    return fmt(f * 1e9, 1) + ' nHz';
+  }
+
+  function initGwChart() {
+    if (!window.GWChart || gwChart || !gwEl) return;
+    gwChart = window.GWChart.create(gwEl, { label: T });
+  }
+
+  // bq/bchi1/bchi2/bsep değişince ya da kipe girince sistem yeniden kurulur, saat 0
+  function rebuildBin() {
+    if (!BP) { bin.sys = null; return; }
+    bin.sys = BP.system({ q: params.bq, chi1: params.bchi1, chi2: params.bchi2, a0: params.bsep });
+    bin.t = 0;
+    bin.merged = false;
+    bin.st = BP.state(bin.sys, 0);
+    if (gwChart) {
+      // tüm dalga biçimi: birleşme + 8·τ halka sönümü
+      const tEnd = bin.sys.tMerge + 8 * bin.sys.qnm.tau;
+      const s = BP.strainSeries(bin.sys, 0, tEnd, 2000);
+      gwChart.setSeries(s.t, s.h);
+      gwChart.setMerger(bin.sys.tMerge);
+    }
+    updateBinVals();
+    updateBinUi();
+  }
+
+  function resetBin() {
+    if (!bin.sys) return;
+    bin.t = 0;
+    bin.merged = false;
+    bin.st = BP.state(bin.sys, 0);
+    setBinPlaying(true);
+  }
+
+  function setBinPlaying(v) {
+    bin.playing = v;
+    params.paused = !v;                 // disk akışı da dursun
+    syncControl('paused');
+    updateBinUi();
+  }
+
+  function updateBinUi() {
+    if (binPlayBtn) binPlayBtn.textContent = T(bin.playing ? 'bin.pause' : 'bin.play');
+  }
+
+  function updateBinVals() {
+    if (!binValsEl || !bin.sys) return;
+    const r = bin.sys.remnant;
+    binValsEl.textContent = T('bin.vals', {
+      mf: fmt(r.mf, 3),
+      msun: sci(r.mf * binMtot(), 2),
+      af: fmt(r.af, 3),
+      pc: fmt(r.Erad * 100, 2) + '%',
+      ej: sci(r.Erad * binMtot() * MSUN_C2, 2),
+    });
+  }
+
+  // Saat: t += dt_duvar · bspeed · rate; rate = k·a^{3/2} yörünge dönemiyle ölçeklenir
+  // (P = 2π·a^{3/2}), böylece her yörünge ~1,5 sn duvar zamanı sürer: uzakta zaman
+  // çok hızlanır (HUD'da ×N), son yörüngeler bulanık olmaz. Birleşmeden sonra rate
+  // alt sınırına iner; saat birleşme + 16·τ'da kalıntıda tutulur. Varsayılan sistem
+  // (q = 0,5, a₀ = 14 M) ~25 sn'de birleşir.
+  function stepBin(dtWall) {
+    const sys = bin.sys;
+    const st = BP.state(sys, bin.t);
+    const rate = clamp(BIN_RATE_K * Math.pow(Math.max(st.sep, 1e-6), 1.5), BIN_RATE_MIN, BIN_RATE_MAX);
+    bin.rate = rate;
+    bin.t = Math.min(bin.t + dtWall * params.bspeed * rate, sys.tMerge + 16 * sys.qnm.tau);
+    if (!bin.merged && bin.t >= sys.tMerge) {
+      bin.merged = true;
+      const r = sys.remnant;
+      toast(T('merger.done.t'), T('merger.done.s', {
+        mf: sci(r.mf * binMtot(), 2),
+        af: fmt(r.af, 3),
+        ej: sci(r.Erad * binMtot() * MSUN_C2, 2),
+      }), 4200);
+    }
+  }
+
+  function drawGwChart() {
+    if (!gwChart || !binOn() || !bin.st) return;
+    if (document.body.classList.contains('no-gw')) return;
+    const w = gwEl.clientWidth, h = gwEl.clientHeight;
+    if (!w || !h) return;
+    if (w !== gwW || h !== gwH) { gwW = w; gwH = h; gwChart.resize(); }
+    const st = bin.st;
+    gwChart.setCursor(bin.t);
+    gwChart.setInfo([
+      'f ' + fmtHz(st.fGW / binSecM()),
+      st.merged
+        ? 'mf ' + fmt(bin.sys.remnant.mf, 3) + ' · af ' + fmt(bin.sys.remnant.af, 3)
+        : 'a ' + fmt(st.sep, 1) + ' M',
+    ]);
+    gwChart.draw();
+  }
+
+  function updateHudMerger(camInfo) {
+    const sys = bin.sys, st = bin.st;
+    const secM = binSecM();
+    const lines = [];
+    lines.push(`<b>${T('hud.binSep')}</b> ${fmt(st.sep, 2)} M · ${fmtLen(st.sep * binMtot() * 1.476625)}   <b>${T('hud.binV')}</b> ${fmt(st.v, 3)} c`);
+    lines.push(`<b>${T('hud.fgw')}</b> ${fmtHz(st.fGW / secM)}   <b>${T('hud.tMerge')}</b> ${st.merged ? T('hud.ringdown') : fmtTime(st.tToMerger * secM)}`);
+    lines.push(`<b>${T('hud.masses')}</b> ${sci(MSUN_TON, 2)} + ${sci(MSUN_TON * params.bq, 2)} M☉   <b>${T('hud.playback')}</b> ${bin.playing ? T('hud.speedup', { n: I.int(bin.rate * params.bspeed) }) : T('hud.paused')}`);
+    if (st.merged) {
+      const r = sys.remnant;
+      lines.push(`<b>${T('hud.remnant')}</b> mf ${fmt(r.mf, 3)} M ≈ ${sci(r.mf * binMtot(), 2)} M☉ · af ${fmt(r.af, 3)}`);
+    }
+    const X = camInfo.X;
+    const rc = Math.hypot(X[0], X[1], X[2]);
+    lines.push(`<b>${T('hud.camera')}</b> r = ${fmt(rc, 1)} M · θ = ${fmt(Math.acos(clamp(X[2] / Math.max(rc, 1e-6), -1, 1)) / DEG, 1)}°`);
+    lines.push(`<b>${T('hud.trace')}</b> ${T('hud.traceInfo', { rw, rh: rhgt, ow, oh, n: QUALITY[params.quality].maxSteps, fps: Math.round(fpsAvg) })}`);
+    $('#hud').innerHTML = lines.join('\n');
+  }
+
+  $('#gwClose').addEventListener('click', () => document.body.classList.add('no-gw'));
+  if (!window.GWChart) document.body.classList.add('no-gw');   // gwchart.js yoksa grafik gizli
+  {
+    const mb = $('#object button[data-object="merger"]');
+    if (mb && !window.BinaryPhysics) mb.disabled = true;       // binary.js yoksa düğme kapalı
+  }
+  initGwChart();
+
+  /* ------------------------------------------------------------------ */
   /* HUD                                                                  */
   /* ------------------------------------------------------------------ */
   function fmtTime(sec) {
@@ -1090,6 +1308,7 @@
   }
   let fpsAvg = 60, frameMsAvg = 16.7;
   function updateHud(camInfo) {
+    if (binOn()) { updateHudMerger(camInfo); return; }
     const a = camInfo.a;
     const M = MASSES[params.mass].m;
     const tg = M * 4.925490947e-6;   // GM/c³ [s]
@@ -1258,6 +1477,26 @@
     const rCam = P.kerrR(X[0], X[1], X[2], a);
     const rh = P.horizon(a);
     const rin = P.isco(a);
+    // Çarpışma kipi: ikili durumu ve uniform değerleri (uBinary = 1; tek delik yolu korunur)
+    const merge = binOn() && !!bin.st;
+    let vA = a, vRh = rh, vRin = rin;
+    let bh1 = [0, 0, 0, 0], bh2 = [0, 0, 0, 0], spin1 = 0, spin2 = 0, binPhase = 0, binSep = 0;
+    if (merge) {
+      const st = bin.st, holes = st.holes;
+      bh1 = [holes[0].pos[0], holes[0].pos[1], holes[0].pos[2], holes[0].m];
+      bh2 = holes[1] ? [holes[1].pos[0], holes[1].pos[1], holes[1].pos[2], holes[1].m] : [0, 0, 0, 0];
+      spin1 = st.merged ? bin.sys.remnant.af : bin.sys.chi1;   // birleşmeden sonra kalıntı dönmesi
+      spin2 = st.merged ? 0 : bin.sys.chi2;
+      binPhase = st.phase;
+      binSep = st.sep;
+      vA = 0;
+      vRh = st.merged
+        ? BP.horizonRadius(bin.sys.remnant.mf, bin.sys.remnant.af)
+        : Math.max(holes[0].rh, holes[1] ? holes[1].rh : 0);
+      vRin = st.merged
+        ? P.isco(bin.sys.remnant.af) * bin.sys.remnant.mf        // kalıntının ISCO'su (M biriminde)
+        : Math.max(2.0 * st.sep, 3);                            // dairesel diskin iç kenarı ~2·ayrıklık
+    }
     // dikey ekranlarda yatay görüş çok daralmasın
     const aspect = cw / ch;
     const tanHalf = Math.tan(cam.fov * DEG / 2) * Math.max(1, Math.min(1 / aspect, 2) * 0.8);
@@ -1292,10 +1531,10 @@
     const tr = progs.trace.use();
     tr.set('uRes', [rw, rhgt]).set('uCenter', [rw * 0.5 - centerShift * scale, rhgt * 0.5]).set('uJitter', jit).set('uTanHalfFov', tanHalf)
       .set('uQ0', tet.Q0).set('uQ1', tet.Q1).set('uQ2', tet.Q2).set('uQ3', tet.Q3)
-      .set('uCamPos', X).set('uA', a).set('uRh', rh).set('uInside', camInfo.inside ? 1 : 0)
-      .set('uMaxSteps', q.maxSteps).set('uStepK', q.stepK).set('uResc', Math.max(2.2 * rCam, 90))
+      .set('uCamPos', X).set('uA', vA).set('uRh', vRh).set('uInside', merge ? 0 : (camInfo.inside ? 1 : 0))
+      .set('uMaxSteps', q.maxSteps).set('uStepK', q.stepK).set('uResc', Math.max(2.2 * rCam, merge ? 120 : 90))
       .set('uTime', simTime)
-      .set('uDiskOn', params.disk ? 1 : 0).set('uRin', rin).set('uRout', Math.max(params.rout, rin + 1)).set('uRprofMax', PROF_RMAX)
+      .set('uDiskOn', params.disk ? 1 : 0).set('uRin', vRin).set('uRout', Math.max(params.rout, vRin + 1)).set('uRprofMax', PROF_RMAX)
       .set('uTmax', params.temp).set('uBeaming', params.beaming).set('uDiskDensity', params.density)
       .set('uDiskBright', params.bright).set('uTurb', params.turb).set('uFlowT', 70.0)
       .set('uHaze', params.haze * (params.interstellar ? 1.6 : 1.0)).set('uHazeH', params.interstellar ? 0.07 : 0.045)
@@ -1304,9 +1543,11 @@
       .set('uProfN', PROF_N)
       .set('uSkyBright', params.skyBright).set('uStarBright', params.starBright).set('uStarsOn', params.stars ? 1 : 0)
       .set('uGrid', params.grid ? 1 : 0).set('uPixAng', 2 * tanHalf / rhgt)
-      .set('uJetOn', params.jet ? 1 : 0).set('uJetBright', 1.0)
-      .set('uCorona', params.corona).set('uWind', params.wind).set('uBLR', params.blr)
-      .set('uBlrIn', blrIn).set('uBlrOut', blrOut).set('uFrame', frameIdx % 4096);
+      .set('uJetOn', merge ? 0 : (params.jet ? 1 : 0)).set('uJetBright', 1.0)
+      .set('uCorona', merge ? 0 : params.corona).set('uWind', merge ? 0 : params.wind).set('uBLR', merge ? 0 : params.blr)
+      .set('uBlrIn', blrIn).set('uBlrOut', blrOut).set('uFrame', frameIdx % 4096)
+      .set('uBinary', merge ? 1 : 0).set('uBH1', bh1).set('uBH2', bh2)
+      .set('uSpin1', spin1).set('uSpin2', spin2).set('uBinPhase', binPhase).set('uBinSep', binSep);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, bbTex); tr.set('uBB', 0);
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, profTex); tr.set('uProf', 1);
     gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_CUBE_MAP, skyTex); tr.set('uSky', 2);
@@ -1448,6 +1689,10 @@
     if (debugSky) { renderSkyView(); const ld = $('#loading'); if (ld) ld.remove(); document.body.classList.add('hide-ui'); return; }
 
     if (!params.paused) simTime += dt * params.timeScale;
+    if (binOn()) {
+      if (bin.playing) stepBin(dt);
+      bin.st = BP.state(bin.sys, bin.t);
+    }
     if (plunge.active) {
       stepPlunge(dt);
       if (plunge.ending) {
@@ -1480,6 +1725,7 @@
     }
     if (now - hudT > 250) { hudT = now; updateHud(camInfo); }
     drawDiagram(now);
+    drawGwChart();
     if (!started) {
       started = true;
       startT = now;
@@ -1493,6 +1739,12 @@
   buildPanel();
   updateObjectUi();
   if (params.object === 'ton618') { const d = $('#panel details[data-sec="sec.quasar"]'); if (d) d.open = true; }
+  if (params.object === 'merger') {
+    const d = $('#panel details[data-sec="sec.merger"]');
+    if (d) d.open = true;
+    bin.playing = !params.paused;
+    rebuildBin();
+  }
   if (qs.get('ui') === '0') document.body.classList.add('hide-ui');
   if (qs.get('panel') === '0' || window.innerWidth < 1280) document.body.classList.add('panel-closed');
   if (qs.get('diagram') === '0' || window.innerWidth < 1400) document.body.classList.add('no-diagram');
@@ -1547,5 +1799,5 @@
     return out;
   }
   // Test/otomasyon için dışa açık durum
-  window.__bh = { params, cam, plunge, tour, startTour, stopTour, startPlunge, applyPreset, setMode, setObject, P, setScale, onParam, bench, hasTimer: !!tq, gpuQ, gpuPost, get scale() { return scale; }, get fps() { return fpsAvg; } };
+  window.__bh = { params, cam, plunge, tour, bin, startTour, stopTour, startPlunge, applyPreset, setMode, setObject, P, setScale, onParam, bench, hasTimer: !!tq, gpuQ, gpuPost, get scale() { return scale; }, get fps() { return fpsAvg; } };
 })();

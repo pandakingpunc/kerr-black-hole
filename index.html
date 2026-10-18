@@ -90,6 +90,18 @@
   #diagramLegend i { display: inline-block; width: 10px; height: 2px; vertical-align: middle; margin-right: 4px; }
   body.no-diagram #diagramBox { display: none; }
 
+  #gwBox { position: fixed; left: 26px; bottom: 172px; width: 250px; padding: 10px 10px 8px; background: var(--glass); border: 1px solid var(--line); border-radius: 14px; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+  #gwBox h3 { margin: 0 0 6px; font-size: 9.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--dim); font-weight: 500; display: flex; justify-content: space-between; }
+  #gwBox h3 span { cursor: pointer; color: var(--faint); letter-spacing: 0; }
+  #gwChart { width: 230px; height: 132px; display: block; }
+  body:not(.merger) #gwBox, body.no-gw #gwBox { display: none; }
+  body.merger #diagramBox { display: none; }
+  body:not(.merger) #panel details[data-sec="sec.merger"] { display: none; }
+  body.merger #panel details[data-sec="sec.quasar"] { display: none; }
+  body.merger #title h1 { color: #ffe4c8; }
+  #object button[data-object="merger"].on { background: rgba(255, 150, 90, 0.28); }
+  #object button:disabled { opacity: .35; pointer-events: none; }
+
   #hint { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); font-size: 11px; color: var(--faint); letter-spacing: .04em; pointer-events: none; transition: opacity 1.2s; white-space: nowrap; }
   #toast { position: fixed; left: 50%; top: 15%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; opacity: 0; transition: opacity .8s; }
   #toast.show { opacity: 1; }
@@ -139,6 +151,9 @@
   @media (max-width: 900px) {
     #panel { width: calc(100vw - 36px); top: auto; height: 52vh; }
     #diagramBox { display: none; }
+    #gwBox { left: 18px; right: 18px; bottom: 64px; width: auto; }
+    #gwChart { width: 100%; height: 110px; }
+    body:not(.panel-closed) #gwBox { display: none; }
     #title { left: 18px; top: 16px; }
     #title h1 { font-size: 14px; letter-spacing: .3em; }
     #title p { display: none; }
@@ -157,7 +172,7 @@
   <p data-i18n="ui.subtitle"></p>
   <div class="trow">
     <button id="infoBtn" class="btn" data-i18n="ui.info"></button>
-    <div id="object" role="group" data-i18n-title="ui.object"><button data-object="kerr">KERR</button><button data-object="ton618">TON 618</button></div>
+    <div id="object" role="group" data-i18n-title="ui.object"><button data-object="kerr">KERR</button><button data-object="ton618">TON 618</button><button data-object="merger" data-i18n="obj.merger.btn"></button></div>
     <div id="lang" role="group" data-i18n-title="ui.language"><button data-lang="en">EN</button><button data-lang="tr">TR</button></div>
   </div>
 </div>
@@ -176,6 +191,11 @@
   <h3><div data-i18n="diag.title"></div><span id="diagramClose" data-i18n-title="diag.hide">×</span></h3>
   <canvas id="diagram" width="432" height="432"></canvas>
   <div id="diagramLegend"></div>
+</div>
+
+<div id="gwBox" class="ui">
+  <h3><div data-i18n="gw.box"></div><span id="gwClose" data-i18n-title="diag.hide">×</span></h3>
+  <canvas id="gwChart"></canvas>
 </div>
 
 <div id="hud" class="ui"></div>
@@ -213,6 +233,8 @@
 
 <script src="js/i18n.js"></script>
 <script src="js/physics.js"></script>
+<script src="js/binary.js"></script>
+<script src="js/gwchart.js"></script>
 <script src="js/shaders.js"></script>
 <script src="js/main.js"></script>
 </body>
