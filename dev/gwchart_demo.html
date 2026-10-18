@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GWChart demo · gravitational-wave strain</title>
+<!--
+  js/gwchart.js için bağımsız demo: sahte chirp + halkalanma serisi (binary.js gerekmez).
+  Kutu, ana uygulamadaki #diagramBox stilinin (cam, çizgi, radius) küçük bir kopyasıdır.
+-->
+<style>
+  :root {
+    --fg: #e9ecf3; --dim: rgba(233, 236, 243, 0.55); --faint: rgba(233, 236, 243, 0.28);
+    --glass: rgba(12, 14, 20, 0.58); --line: rgba(255, 255, 255, 0.08); --accent: #ffb366;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #000; color: var(--fg);
+    font: 12px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  body { display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(1200px 700px at 30% 20%, #10141f, #000 70%); }
+  .box { width: 420px; height: 200px; padding: 10px 10px 8px; background: var(--glass);
+    border: 1px solid var(--line); border-radius: 14px;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+  .box canvas { width: 100%; height: 100%; display: block; }
+  .under { width: 420px; margin-top: 10px; display: flex; justify-content: space-between; align-items: center;
+    gap: 10px; color: var(--faint); font-size: 10.5px; }
+  .under code { color: var(--accent); font: 10.5px ui-monospace, "SF Mono", Menlo, monospace; }
+  button { all: unset; cursor: pointer; padding: 4px 10px; border-radius: 999px; font-size: 10px;
+    letter-spacing: .1em; color: var(--dim); background: var(--glass); border: 1px solid var(--line); }
+  button:hover { color: var(--fg); }
+</style>
+</head>
+<body>
+<div>
+  <div class="box"><canvas id="gw"></canvas></div>
+  <div class="under">
+    <span>fake binary · q = 0.5 · χ₁ = 0.9 · χ₂ = 0.7 · a₀ = 14 M · <code>dev/gwchart_demo.html</code></span>
+    <button id="lang" title="switch language">TR</button>
+  </div>
+</div>
+
+<script src="../js/gwchart.js"></script>
+<script>
+(function () {
+  'use strict';
+  if (!window.GWChart) { document.body.textContent = 'js/gwchart.js could not be loaded'; return; }
+
+  /* Sahte ikili sistem: SPEC modelinin sade kopyası (binary.js'e gerek yok).
+     Peters ilhamı a(t) = (a0⁴ − (256/5)νt)^¼, faz φ = (a0^{5/2} − a^{5/2})/(32ν). */
+  const q = 0.5, chi1 = 0.9, chi2 = 0.7, a0 = 14;
+  const m1 = 1 / (1 + q), m2 = q / (1 + q), nu = m1 * m2;
+  const rh = function (m, chi) { return m * (1 + Math.sqrt(1 - chi * chi)); };
+  const aMerge = rh(m1, chi1) + rh(m2, chi2);
+  const tMerge = (a0 ** 4 - aMerge ** 4) / ((256 / 5) * nu);
+  const phiM = (a0 ** 2.5 - aMerge ** 2.5) / (32 * nu);    // birleşme anındaki faz
+  const ampM = 4 * nu / aMerge;                            // birleşme anındaki genlik
+  // halkalanma: af = 0.72 kalan için Berti uyumu (demo değeri)
+  const af = 0.72, mf = 0.96;
+  const wR = (1.5251 - 1.1568 * (1 - af) ** 0.1292) / mf;
+  const tauR = 2 * (0.7 + 1.4187 * (1 - af) ** -0.499) / wR;
+
+  // seri: birleşmeden önceki son ~500 M + halkalanma (klasik chirp görünümü)
+  const tStart = tMerge - 500, tEnd = tMerge + 6 * tauR, N = 4000;
+  const T = new Float64Array(N), H = new Float64Array(N);
+  for (let i = 0; i < N; i++) {
+    const t = tStart + (tEnd - tStart) * i / (N - 1);
+    T[i] = t;
+    if (t < tMerge) {
+      const a = (a0 ** 4 - (256 / 5) * nu * t) ** 0.25;
+      H[i] = 4 * nu / a * Math.cos(2 * (a0 ** 2.5 - a ** 2.5) / (32 * nu));
+    } else {
+      const u = t - tMerge;
+      H[i] = ampM * Math.exp(-u / tauR) * Math.cos(wR * u + 2 * phiM);
+    }
+  }
+
+  const STR = {
+    en: { 'gw.title': 'Gravitational wave · h₊', 'gw.time': 'time (M)', 'gw.strain': 'strain', 'gw.merger': 'merger' },
+    tr: { 'gw.title': 'Kütle çekim dalgası · h₊', 'gw.time': 'zaman (M)', 'gw.strain': 'gerinim', 'gw.merger': 'birleşme' }
+  };
+  let lang = 'en';
+  const label = function (k) { return (STR[lang] && STR[lang][k]) || k; };
+
+  // fiziksel birimler (SPEC): TON 618 + q katı Kerr deliği
+  const secPerM = 4.07e10 * (1 + q) * 4.925490947e-6;   // 1 M kaç saniye
+
+  const chart = GWChart.create(document.getElementById('gw'), { label: label });
+  chart.setSeries(T, H);
+  chart.setMerger(tMerge);
+
+  function hAt(t) {                // imleçteki gerinim (doğrusal ara değer)
+    let lo = 0, hi = N;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (T[m] <= t) lo = m + 1; else hi = m; }
+    const j = Math.min(lo, N - 1), k = Math.max(lo - 1, 0);
+    const dt = T[j] - T[k];
+    return dt > 0 ? H[k] + (H[j] - H[k]) * (t - T[k]) / dt : H[k];
+  }
+
+  const LOOP = 14000;              // ms — seriyi bir dolaşma süresi
+  function frame(now) {
+    const u = (now % LOOP) / LOOP;
+    const t = tStart + (tEnd - tStart) * (1 - (1 - u) * (1 - u));   // kolayan: birleşme yavaşlasın
+    chart.setCursor(t);
+    const merged = t >= tMerge;
+    let fM;                        // GW frekansı, döngü/M
+    if (merged) fM = wR / (2 * Math.PI);
+    else { const a = (a0 ** 4 - (256 / 5) * nu * t) ** 0.25; fM = 1 / (Math.PI * a * Math.sqrt(a)); }
+    const fHz = fM / secPerM;
+    chart.setInfo([
+      't − t_merge = ' + (t - tMerge).toFixed(0) + ' M',
+      'f_GW = ' + fM.toFixed(4) + ' /M · ' + (fHz * 1e6).toFixed(2) + ' µHz',
+      'h₊ = ' + hAt(t).toFixed(3)
+    ]);
+    chart.draw();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  document.getElementById('lang').addEventListener('click', function () {
+    lang = lang === 'en' ? 'tr' : 'en';
+    this.textContent = lang === 'en' ? 'TR' : 'EN';
+    document.documentElement.lang = lang;   // grafik başlığı bunu dikkate alır
+  });
+  window.addEventListener('resize', function () { chart.resize(); });
+})();
+</script>
+</body>
+</html>
