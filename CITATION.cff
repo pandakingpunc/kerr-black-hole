@@ -16,10 +16,11 @@ abstract: >-
   numerical-relativity fits and light traced through superposed Kerr-Schild
   metrics. The physics core is validated against analytic results.
 authors:
-  - family-names: Karatum
+  - family-names: Karatüm
     given-names: Mustafa
-version: 1.2.0
-date-released: 2026-10-18
+    orcid: "https://orcid.org/0009-0006-7053-2872"
+version: 1.2.1
+date-released: 2026-11-01
 license: MIT
 doi: 10.5281/zenodo.23139593
 identifiers:
