@@ -194,6 +194,7 @@
     progs = {
       skygen: makeProg(SH.SKYGEN, 'skygen'),
       trace: makeProg(SH.TRACE, 'trace'),
+      traceBin: makeProg(SH.TRACE.replace('\n', '\n#define BINARY\n'), 'traceBin'),
       taa: makeProg(SH.TAA, 'taa'),
       neigh: makeProg(SH.NEIGH, 'neigh'),
       down: makeProg(SH.DOWN, 'down'),
@@ -1533,7 +1534,7 @@
     // 1) Işın izleme
     gl.bindFramebuffer(gl.FRAMEBUFFER, traceRT.fb);
     gl.viewport(0, 0, rw, rhgt);
-    const tr = progs.trace.use();
+    const tr = (merge ? progs.traceBin : progs.trace).use();
     tr.set('uRes', [rw, rhgt]).set('uCenter', [rw * 0.5 - centerShift * scale, rhgt * 0.5]).set('uJitter', jit).set('uTanHalfFov', tanHalf)
       .set('uQ0', tet.Q0).set('uQ1', tet.Q1).set('uQ2', tet.Q2).set('uQ3', tet.Q3)
       .set('uCamPos', X).set('uA', vA).set('uRh', vRh).set('uInside', merge ? 0 : (camInfo.inside ? 1 : 0))

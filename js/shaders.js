@@ -872,7 +872,10 @@ void main() {
   if (valid) {
     sCam = 1.0 / qm.x;
     q = qm.yzw * sCam;
-    if (uBinary > 0.5) {
+    // İki yol ayrı program olarak derlenir (main.js: trace / traceBin). Tek programda dinamik
+    // dallanma olarak kalınca D3D11 (ANGLE) derleyicisi tek-delik yolunu da ~10 kat yavaşlatıyordu.
+#ifdef BINARY
+    {
       /* === İkili yol: iki deliğin üst üste metriğinde jeodezik === */
       float t = 0.0;
       vec3 dq; float dtl; vec2 rr;
@@ -927,7 +930,9 @@ void main() {
         if (length(x) > uResc && dot(x, dx) > 0.0) { escaped = true; tEsc = t; break; }
         if (!(rr.x == rr.x) || !(rr.y == rr.y)) break;
       }
-    } else {
+    }
+#else
+    {
     /* === Özgün tek-delik yolu (değiştirilmedi) === */
     float t = 0.0;
     vec3 dq; float dtl, r;
@@ -985,6 +990,7 @@ void main() {
       if (!(r == r)) break;
     }
     }
+#endif
   }
   vec3 dir = normalize(dx);
   vec3 ddx = dFdx(dir), ddy = dFdy(dir);
